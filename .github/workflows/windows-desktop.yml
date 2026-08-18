@@ -27,12 +27,11 @@ jobs:
   # Independent desktop packaging and performance signal. Like windows-native
   # in ci.yml it is deliberately absent from any all-checks-passed verdict so
   # it never delays or changes the required PR gate.
+  # Runner: hosted windows-2025. The upstream repo's self-hosted pool labels
+  # (dsh-windows-2025-16core / [self-hosted, dsh-win-ci, windows]) do not
+  # exist on forks, so this workflow must stay on hosted images to run there.
   desktop-perf:
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+    runs-on: windows-2025
     name: desktop package / perf smoke
     timeout-minutes: 60
     steps:
