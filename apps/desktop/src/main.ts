@@ -14,6 +14,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  crashReporter,
   dialog,
   ipcMain,
   Menu,
@@ -24,7 +25,17 @@ import {
   Tray,
   type Rectangle,
 } from 'electron'
-import { IPC, type AppInfo, type WindowMenuAction } from './shared/ipc.ts'
+import { IPC, type AppInfo } from './shared/ipc.ts'
+import {
+  isBase64Payload,
+  isClipboardText,
+  isDownloadFilename,
+  isDownloadRevealPath,
+  isRuntimeStream,
+  isRuntimeUnaryArgs,
+  isWindowMenuAction,
+  sanitizeDownloadFilename,
+} from './ipc-validation.ts'
 import {
   registerRuntimeSubscription,
   runtimeBootManifest,
@@ -56,7 +67,6 @@ const BENCH_STREAM = process.argv.includes('--bench-stream')
 const PERF_TEST = process.argv.includes('--perf-test')
 const SMOKE_TIMEOUT_MS = 120_000
 const SHUTDOWN_TIMEOUT_MS = 10_000
-const WINDOW_MENU_ACTIONS: readonly string[] = ['restore', 'move', 'size', 'minimize', 'maximize', 'close']
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -108,6 +118,12 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ])
+
+// Crashpad must start before app ready so every later renderer process is
+// monitored. Collection is local-only: dumps land in the userData
+// crashDumps directory (app.getPath('crashDumps')) and are exported by the
+// diagnostics bundle; nothing is uploaded.
+crashReporter.start({ uploadToServer: false, compress: true })
 
 const userDataDir = app.getPath('userData')
 const logFile = join(userDataDir, 'logs', 'main.log')
@@ -272,13 +288,13 @@ function registerIpc(): void {
     })
     const root = picked.filePaths[0]
     if (picked.canceled || root === undefined) return { cancelled: true }
-    const path = await collectDiagnostics(root, logFile, currentAppInfo())
+    const path = await collectDiagnostics(root, logFile, currentAppInfo(), app.getPath('crashDumps'))
     log('info', `diagnostics exported to ${path}`)
     return { cancelled: false, path }
   })
 
   ipcMain.handle(IPC.clipboardWriteText, (_event, text: unknown) => {
-    if (typeof text !== 'string') return false
+    if (!isClipboardText(text)) return false
     clipboard.writeText(text)
     // The write API is void and silently no-ops when the OS clipboard is
     // unavailable; read back so callers never report a copy that did not land.
@@ -286,10 +302,10 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.downloadSave, (_event, filename: unknown, bytesBase64: unknown) => {
-    if (typeof filename !== 'string' || filename.length === 0 || typeof bytesBase64 !== 'string') {
+    if (!isDownloadFilename(filename) || !isBase64Payload(bytesBase64)) {
       return { ok: false, error: 'invalid download arguments' }
     }
-    const safeName = filename.replace(/[\\/:*?"<>|]/g, '_')
+    const safeName = sanitizeDownloadFilename(filename)
     const downloads = app.getPath('downloads')
     mkdirSync(downloads, { recursive: true })
     const path = join(downloads, safeName)
@@ -303,9 +319,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.downloadReveal, (_event, path: unknown) => {
-    if (typeof path !== 'string') return false
-    const downloads = app.getPath('downloads')
-    if (!path.toLowerCase().startsWith(downloads.toLowerCase())) return false
+    if (!isDownloadRevealPath(path, app.getPath('downloads'))) return false
     shell.showItemInFolder(path)
     return true
   })
@@ -337,8 +351,8 @@ function registerIpc(): void {
   ipcMain.handle(IPC.windowIsMaximized, () => mainWindow?.isMaximized() ?? false)
 
   ipcMain.handle(IPC.windowMenuAction, (_event, rawAction: unknown) => {
-    if (typeof rawAction !== 'string' || !WINDOW_MENU_ACTIONS.includes(rawAction)) return
-    const action = rawAction as WindowMenuAction
+    if (!isWindowMenuAction(rawAction)) return
+    const action = rawAction
     const win = mainWindow
     if (win === null) return
     switch (action) {
@@ -370,7 +384,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC.windowMenuEndDrag, () => { stopWindowDrag() })
 
   ipcMain.handle(IPC.runtimeUnary, (_event, method: unknown, body: unknown) => {
-    if (typeof method !== 'string' || typeof body !== 'string') {
+    // isRuntimeUnaryArgs narrows `method`; the explicit typeof narrows `body`
+    // so runtimeUnary receives two strings.
+    if (!isRuntimeUnaryArgs(method, body) || typeof body !== 'string') {
       return { status: 400, body: JSON.stringify({ error: 'invalid runtime request' }) }
     }
     return runtimeUnary(method, body)
@@ -379,7 +395,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.runtimeBootManifest, () => runtimeBootManifest())
 
   ipcMain.on(IPC.runtimeSubscribe, (event, stream: unknown) => {
-    if (stream !== 'mux' && stream !== 'host') return
+    if (!isRuntimeStream(stream)) return
     const webContents = event.sender
     const dispose = registerRuntimeSubscription(webContents, stream)
     webContents.once('destroyed', dispose)

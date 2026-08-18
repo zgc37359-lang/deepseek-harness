@@ -1,0 +1,45 @@
+name: CodeQL
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/host/desktop-host/**'
+      - '.github/workflows/codeql.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/host/desktop-host/**'
+      - '.github/workflows/codeql.yml'
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          config-file: .github/codeql-config.yml
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'

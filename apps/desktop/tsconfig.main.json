@@ -10,6 +10,7 @@
     "src/desktop-boot.ts",
     "src/desktop-runtime.ts",
     "src/diagnostics.ts",
+    "src/ipc-validation.ts",
     "src/pty-probe.ts",
     "src/update.ts",
     "src/bench-stream.ts",

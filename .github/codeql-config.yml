@@ -1,0 +1,16 @@
+name: CodeQL configuration
+
+# Scope the analysis to the desktop surface: the Electron shell plus the
+# in-process host package. Scanning the whole monorepo (vendored Cordis,
+# python, website) would exceed the 30-minute job budget and churn on
+# vendored code this workflow does not own.
+paths:
+  - apps/desktop/src
+  - apps/desktop/scripts
+  - packages/host/desktop-host/src
+  - packages/client/connection/src
+
+paths-ignore:
+  - '**/node_modules/**'
+  - '**/lib/**'
+  - '**/dist/**'
