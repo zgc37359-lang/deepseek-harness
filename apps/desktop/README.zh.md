@@ -92,6 +92,9 @@ Windows CI 工作流（`windows-desktop.yml`）全部针对**打包后的 exe** 
 
 | 门禁 | 检查内容 |
 |---|---|
+| `soak-test` | mock LLM 驱动的 N 轮 UI 浸泡测试，把关主进程 RSS 与句柄增长 |
+| `load-older-e2e` | 恢复超大会话，断言“加载更早”会可见地新增聊天节点 |
+| `verify-install` | 校验打包闭包关键标记、安装与构建一致、smoke 启动 |
 | `perf-smoke` | 冷启动 ≤ 15 秒，峰值内存 ≤ 1 GiB |
 | `perf-test` | 事件循环漂移 p95 ≤ 50 ms，渲染 ≥ 30 FPS |
 | `bench-stream` | 首 token ≤ 2 秒，≥ 100 字符/秒（mock LLM） |

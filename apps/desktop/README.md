@@ -99,6 +99,9 @@ The Windows CI workflow (`windows-desktop.yml`) runs against the **packaged exe*
 | `e2e-window` | Visible window boots, Web UI mounts, maximize/restore and close-to-tray behave |
 | `ui-matrix` | 60 interactive steps across shell, sidebar, composer, settings, conversation |
 | `stress-test` | Burst messages, 120-line output, rapid sessions, memory/event-loop budgets |
+| `soak-test` | N-turn UI soak against a mock LLM; gates main-process RSS and handle growth |
+| `load-older-e2e` | Restores an oversized session; asserts "Load earlier" visibly adds chat nodes |
+| `verify-install` | Checks packaged-closure markers, installed-vs-built parity, and smoke boot |
 | `install-cycle` | Silent install → smoke → local-feed upgrade (incl. corrupted-package error) → silent uninstall → residue checks, on a fresh hosted runner |
 
 ---

@@ -25,14 +25,30 @@ function App() {
         setInfo(`${value.appVersion} · Electron ${value.electronVersion} · ${value.platform}/${value.arch}`)
       }
     })
-    void window.desktop.runtime.getBootManifest().then((bootManifest) => {
-      if (active) {
-        setRuntimeAttached(bootManifest !== null)
+    // The runtime attaches a moment after the renderer mounts; the boot
+    // manifest can therefore be null on the first probe. Poll briefly so an
+    // early window settles onto the web UI instead of the placeholder.
+    const MAX_MANIFEST_ATTEMPTS = 60
+    const MANIFEST_RETRY_MS = 500
+    let attempts = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const checkManifest = async (): Promise<void> => {
+      const bootManifest = await window.desktop.runtime.getBootManifest()
+      if (!active) return
+      if (bootManifest !== null) {
+        setRuntimeAttached(true)
         setManifest(bootManifest)
+        return
       }
-    })
+      attempts += 1
+      if (attempts < MAX_MANIFEST_ATTEMPTS) {
+        timer = setTimeout(() => { void checkManifest() }, MANIFEST_RETRY_MS)
+      }
+    }
+    void checkManifest()
     return () => {
       active = false
+      if (timer !== undefined) clearTimeout(timer)
     }
   }, [])
 

@@ -6,7 +6,8 @@
  * @module @deepseek-ai/dsh-desktop/main
  */
 
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync } from 'node:fs'
+import { rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { inspect } from 'node:util'
@@ -14,6 +15,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  crashReporter,
   dialog,
   ipcMain,
   Menu,
@@ -24,7 +26,17 @@ import {
   Tray,
   type Rectangle,
 } from 'electron'
-import { IPC, type AppInfo, type WindowMenuAction } from './shared/ipc.ts'
+import { IPC, type AppInfo } from './shared/ipc.ts'
+import {
+  isBase64Payload,
+  isClipboardText,
+  isDownloadFilename,
+  isDownloadRevealPath,
+  isRuntimeStream,
+  isRuntimeUnaryArgs,
+  isWindowMenuAction,
+  sanitizeDownloadFilename,
+} from './ipc-validation.ts'
 import {
   registerRuntimeSubscription,
   runtimeBootManifest,
@@ -36,6 +48,8 @@ import { collectDiagnostics } from './diagnostics.ts'
 import { runPtyProbe } from './pty-probe.ts'
 import { runStreamBenchmark } from './bench-stream.ts'
 import { runPerfProbe } from './perf-test.ts'
+import { MemorySampler } from './memory.ts'
+import { writeBase64Stream } from './download.ts'
 // electron-updater declares `autoUpdater` as a getter on its CJS exports, which
 // Node's ESM named-export interop cannot statically detect; the default import
 // (module.exports) always carries it.
@@ -56,7 +70,10 @@ const BENCH_STREAM = process.argv.includes('--bench-stream')
 const PERF_TEST = process.argv.includes('--perf-test')
 const SMOKE_TIMEOUT_MS = 120_000
 const SHUTDOWN_TIMEOUT_MS = 10_000
-const WINDOW_MENU_ACTIONS: readonly string[] = ['restore', 'move', 'size', 'minimize', 'maximize', 'close']
+const MEMORY_SAMPLE_INTERVAL_MS = (() => {
+  const parsed = Number(process.env.DSH_DESKTOP_MEMORY_SAMPLE_MS)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000
+})()
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -109,6 +126,12 @@ protocol.registerSchemesAsPrivileged([
   },
 ])
 
+// Crashpad must start before app ready so every later renderer process is
+// monitored. Collection is local-only: dumps land in the userData
+// crashDumps directory (app.getPath('crashDumps')) and are exported by the
+// diagnostics bundle; nothing is uploaded.
+crashReporter.start({ uploadToServer: false, compress: true })
+
 const userDataDir = app.getPath('userData')
 const logFile = join(userDataDir, 'logs', 'main.log')
 mkdirSync(dirname(logFile), { recursive: true })
@@ -117,6 +140,10 @@ mkdirSync(dirname(logFile), { recursive: true })
 function log(level: 'info' | 'warn' | 'error', message: string): void {
   appendFileSync(logFile, `[${new Date().toISOString()}] ${level} ${message}\n`)
 }
+
+const memorySampler = new MemorySampler(MEMORY_SAMPLE_INTERVAL_MS, (sample) => {
+  log('info', `memory sample ${JSON.stringify(sample)}`)
+})
 
 // Desktop launches may start with stdout/stderr already closed (Explorer,
 // Start-Process, test harness teardown). Node's default warning printer
@@ -187,6 +214,7 @@ function createMainWindow(): void {
   })
   win.webContents.on('render-process-gone', (_event, details) => {
     log('error', `renderer gone: ${details.reason}`)
+    memorySampler.take()
     if (isQuitting || SMOKE_TEST) return
     rendererCrashes += 1
     if (rendererCrashes <= 2) win.webContents.reload()
@@ -272,29 +300,40 @@ function registerIpc(): void {
     })
     const root = picked.filePaths[0]
     if (picked.canceled || root === undefined) return { cancelled: true }
-    const path = await collectDiagnostics(root, logFile, currentAppInfo())
+    const path = await collectDiagnostics(
+      root,
+      logFile,
+      currentAppInfo(),
+      app.getPath('crashDumps'),
+      memorySampler.snapshot(),
+    )
     log('info', `diagnostics exported to ${path}`)
     return { cancelled: false, path }
   })
 
   ipcMain.handle(IPC.clipboardWriteText, (_event, text: unknown) => {
-    if (typeof text !== 'string') return false
+    if (!isClipboardText(text)) return false
     clipboard.writeText(text)
     // The write API is void and silently no-ops when the OS clipboard is
     // unavailable; read back so callers never report a copy that did not land.
     return clipboard.readText() === text
   })
 
-  ipcMain.handle(IPC.downloadSave, (_event, filename: unknown, bytesBase64: unknown) => {
-    if (typeof filename !== 'string' || filename.length === 0 || typeof bytesBase64 !== 'string') {
+  ipcMain.handle(IPC.downloadSave, async (_event, filename: unknown, bytesBase64: unknown) => {
+    if (!isDownloadFilename(filename) || !isBase64Payload(bytesBase64)) {
       return { ok: false, error: 'invalid download arguments' }
     }
-    const safeName = filename.replace(/[\\/:*?"<>|]/g, '_')
+    const safeName = sanitizeDownloadFilename(filename)
     const downloads = app.getPath('downloads')
     mkdirSync(downloads, { recursive: true })
     const path = join(downloads, safeName)
     try {
-      writeFileSync(path, Buffer.from(bytesBase64, 'base64'))
+      const written = await writeBase64Stream(path, bytesBase64)
+      const size = (await stat(path)).size
+      if (size !== written) {
+        await rm(path, { force: true })
+        throw new Error(`download size mismatch: wrote ${written}, disk has ${size}`)
+      }
       log('info', `download saved to ${path}`)
       return { ok: true, path }
     } catch (error) {
@@ -303,9 +342,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.downloadReveal, (_event, path: unknown) => {
-    if (typeof path !== 'string') return false
-    const downloads = app.getPath('downloads')
-    if (!path.toLowerCase().startsWith(downloads.toLowerCase())) return false
+    if (!isDownloadRevealPath(path, app.getPath('downloads'))) return false
     shell.showItemInFolder(path)
     return true
   })
@@ -337,8 +374,8 @@ function registerIpc(): void {
   ipcMain.handle(IPC.windowIsMaximized, () => mainWindow?.isMaximized() ?? false)
 
   ipcMain.handle(IPC.windowMenuAction, (_event, rawAction: unknown) => {
-    if (typeof rawAction !== 'string' || !WINDOW_MENU_ACTIONS.includes(rawAction)) return
-    const action = rawAction as WindowMenuAction
+    if (!isWindowMenuAction(rawAction)) return
+    const action = rawAction
     const win = mainWindow
     if (win === null) return
     switch (action) {
@@ -370,7 +407,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC.windowMenuEndDrag, () => { stopWindowDrag() })
 
   ipcMain.handle(IPC.runtimeUnary, (_event, method: unknown, body: unknown) => {
-    if (typeof method !== 'string' || typeof body !== 'string') {
+    // isRuntimeUnaryArgs narrows `method`; the explicit typeof narrows `body`
+    // so runtimeUnary receives two strings.
+    if (!isRuntimeUnaryArgs(method, body) || typeof body !== 'string') {
       return { status: 400, body: JSON.stringify({ error: 'invalid runtime request' }) }
     }
     return runtimeUnary(method, body)
@@ -379,7 +418,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.runtimeBootManifest, () => runtimeBootManifest())
 
   ipcMain.on(IPC.runtimeSubscribe, (event, stream: unknown) => {
-    if (stream !== 'mux' && stream !== 'host') return
+    if (!isRuntimeStream(stream)) return
     const webContents = event.sender
     const dispose = registerRuntimeSubscription(webContents, stream)
     webContents.once('destroyed', dispose)
@@ -469,6 +508,8 @@ function bootstrap(): void {
     }, SMOKE_TIMEOUT_MS)
   }
   log('info', `desktop boot: ${app.getVersion()} electron ${process.versions.electron}`)
+  memorySampler.start()
+  memorySampler.take()
   if (!SMOKE_TEST && app.isPackaged) {
     // Test hook: install-cycle gates point electron-updater at a local feed
     // (generic provider serving latest.yml + installer) instead of the
@@ -484,6 +525,7 @@ function bootstrap(): void {
   void bootDesktopRuntime().then(() => {
     runtimeReady = true
     log('info', 'desktop runtime attached')
+    memorySampler.take()
     maybeFinishSmoke()
     if (PERF_TEST) {
       const win = mainWindow
@@ -506,6 +548,7 @@ function bootstrap(): void {
   }).catch((error: unknown) => {
     const detail = inspect(error, { depth: 6, colors: false })
     log('error', `desktop runtime boot failed: ${detail}`)
+    memorySampler.take()
     if (SMOKE_TEST) {
       console.error(`DESKTOP_RUNTIME_BOOT_FAILED\n${detail}`)
       app.exit(1)
@@ -518,6 +561,7 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
   log('info', 'shutdown: disposing harness tree')
+  memorySampler.take()
   const timer = setTimeout(() => {
     log('error', 'shutdown timed out; forcing exit')
     app.exit(0)
@@ -528,6 +572,7 @@ async function shutdown(): Promise<void> {
     log('error', `shutdown dispose failed: ${String(error)}`)
   }
   clearTimeout(timer)
+  memorySampler.stop()
   app.exit(0)
 }
 

@@ -30,6 +30,10 @@ import { SessionQueueMirror } from './queue-mirror.ts'
 
 /** Messages requested per history page. */
 export const PAGE_MESSAGES = 50
+/** Upper bound on continuation pages one "load earlier" click may skip. */
+const MAX_LOAD_OLDER_SKIP_PAGES = 16
+/** Event types whose page content is never invisible (messages and tool rows). */
+const VISIBLE_PAGE_EVENT_TYPES = new Set(['user/message', 'assistant/message', 'tool/call', 'tool/result'])
 
 /** Manager-owned observers of a Session object's local state edges. */
 export interface SessionOptions {
@@ -78,6 +82,7 @@ export class Session implements SessionFace {
    *  passes drop all writes once the generation moves on. */
   private openGeneration = 0
   private loadingOlder = false
+  private loadOlderSkippedPages: number | null = null
   private pending = new Map<string, PendingInteraction>()
   private pendingRev = 0
   private pendingCache: { rev: number; value: PendingInteraction[] } | null = null
@@ -379,30 +384,62 @@ export class Session implements SessionFace {
     this.loadingOlder = true
     this.notifier.markDirty()
     try {
-      const { result } = await this.history({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES })
-      if (!result.ok) return // keep the window as-is; do not overwrite openError (open already succeeded)
-      const older = result.value.events
-      if (older.length === 0) {
+      let skipped = false
+      let skippedPages = 0
+      for (let page = 0; page <= MAX_LOAD_OLDER_SKIP_PAGES; page++) {
+        const { result } = await this.history({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES })
+        if (!result.ok) {
+          this.loadOlderSkippedPages = null
+          return // keep the window as-is; do not overwrite openError (open already succeeded)
+        }
+        const older = result.value.events
+        if (older.length === 0) {
+          this.hasMore = result.value.hasMore
+          this.loadOlderSkippedPages = skippedPages
+          this.conversation.prepend([], this.hasMore)
+          return
+        }
+        const tail = older[older.length - 1]
+        const contiguous = tail !== undefined && tail.event.seq + 1 === this.baseSeq
+        // A page that is only the continuation of a giant chunk stream (no
+        // message or tool rows) extends an already-rendered context without
+        // any visible progress. Skip it without keeping it and jump to the
+        // next page, so one click surfaces genuinely older content.
+        const visibleContent = older.some(entry => VISIBLE_PAGE_EVENT_TYPES.has(entry.event.type))
+        if (contiguous && !visibleContent && result.value.hasMore && page < MAX_LOAD_OLDER_SKIP_PAGES) {
+          /* v8 ignore next -- the ?? arm needs older[0] undefined, but the empty-page branch above already returned. */
+          this.baseSeq = older[0]?.event.seq ?? this.baseSeq
+          this.hasMore = result.value.hasMore
+          skippedPages += 1
+          skipped = true
+          continue
+        }
+        if (tail === undefined || (!contiguous && !skipped)) {
+          // Continuity assertion: on violation drop the page fail-soft rather than render an out-of-order stream.
+          // A gap after an intentional skip is expected: the assembler renders
+          // a window-gap divider over the skipped chunk stream.
+          console.error(`[web-runtime] history page discontinuous: tail seq ${tail?.event.seq} vs baseSeq ${this.baseSeq}`)
+          this.hasMore = false
+          this.loadOlderSkippedPages = null
+          this.conversation.prepend([], false)
+          return
+        }
+        this.events = [...older.map(e => e.event), ...this.events]
+        this.views = [...older.map(e => e.view), ...this.views]
+        /* v8 ignore next -- the ?? arm needs older[0] undefined, but the empty-page branch above already returned. */
+        this.baseSeq = older[0]?.event.seq ?? this.baseSeq
         this.hasMore = result.value.hasMore
-        this.conversation.prepend([], this.hasMore)
+        this.loadOlderSkippedPages = skippedPages
+        this.conversation.prepend(older.map(conversationInput), this.hasMore)
         return
       }
-      const tail = older[older.length - 1]
-      if (tail === undefined || tail.event.seq + 1 !== this.baseSeq) {
-        // Continuity assertion: on violation drop the page fail-soft rather than render an out-of-order stream.
-        console.error(`[web-runtime] history page discontinuous: tail seq ${tail?.event.seq} vs baseSeq ${this.baseSeq}`)
-        this.hasMore = false
-        this.conversation.prepend([], false)
-        return
-      }
-      this.events = [...older.map(e => e.event), ...this.events]
-      this.views = [...older.map(e => e.view), ...this.views]
-      /* v8 ignore next -- the ?? arm needs older[0] undefined, but the empty-page branch above already returned. */
-      this.baseSeq = older[0]?.event.seq ?? this.baseSeq
-      this.hasMore = result.value.hasMore
-      this.conversation.prepend(older.map(conversationInput), this.hasMore)
+      // Skip budget exhausted without a visible page; leave the cursor where
+      // it is so the button can be clicked again.
+      this.loadOlderSkippedPages = skippedPages
+      this.conversation.prepend([], this.hasMore)
     } catch (error) {
       console.error('[web-runtime] loadOlder failed:', error)
+      this.loadOlderSkippedPages = null
     } finally {
       this.loadingOlder = false
       this.notifier.markDirty()
@@ -614,6 +651,7 @@ export class Session implements SessionFace {
   private async doOpen(generation: number): Promise<void> {
     this.openState = 'loading'
     this.openError = null
+    this.loadOlderSkippedPages = null
     this.notifier.markDirty()
     try {
       let { result } = await this.history({ maxMessages: PAGE_MESSAGES })
@@ -761,6 +799,7 @@ export class Session implements SessionFace {
       openError: this.openError,
       hasMore: this.hasMore,
       loadingOlder: this.loadingOlder,
+      loadOlderSkippedPages: this.loadOlderSkippedPages,
       promptError: this.promptError,
       blank: this.blankBit,
       lastAgentError: this.lastAgentError,
