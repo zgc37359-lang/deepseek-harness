@@ -1,0 +1,174 @@
+name: Windows Desktop
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/host/desktop-host/**'
+      - 'packages/client/connection/**'
+      - 'packages/interaction/grants/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/windows-desktop.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
+
+permissions:
+  contents: read
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  # Independent desktop packaging and performance signal. Like windows-native
+  # in ci.yml it is deliberately absent from any all-checks-passed verdict so
+  # it never delays or changes the required PR gate.
+  desktop-perf:
+    runs-on: >-
+      ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
+          && github.event.pull_request.user.login != 'dependabot[bot]'
+          && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
+          || 'dsh-windows-2025-16core' }}
+    name: desktop package / perf smoke
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Enable Developer Mode (symlink support)
+        shell: pwsh
+        run: >-
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+          /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Install (immutable)
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Build desktop sources
+        shell: pwsh
+        run: pnpm --filter @deepseek-ai/dsh-desktop run build
+
+      - name: Package flattened production closure
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          node scripts/flatten-deps.mjs
+          node node_modules/electron-builder/cli.js --win nsis --config electron-builder.flat.yml
+
+      - name: Run performance smoke with budgets
+        shell: pwsh
+        working-directory: apps/desktop
+        env:
+          DSH_DESKTOP_COLD_START_BUDGET_MS: '15000'
+          DSH_DESKTOP_PEAK_MEMORY_BUDGET_MIB: '1024'
+        run: node scripts/perf-smoke.mjs
+
+      - name: PTY probe (packaged)
+        shell: pwsh
+        working-directory: apps/desktop
+        run: '& "dist-app2\win-unpacked\DeepSeek Harness.exe" --pty-probe'
+
+      - name: Streaming benchmark with mock LLM
+        shell: pwsh
+        working-directory: apps/desktop
+        env:
+          DSH_DESKTOP_FIRST_TOKEN_BUDGET_MS: '2000'
+          DSH_DESKTOP_STREAM_TOTAL_BUDGET_MS: '5000'
+          DSH_DESKTOP_MIN_CHARS_PER_SEC: '100'
+        run: node scripts/bench-stream.mjs
+
+      - name: Main-thread event-loop and frame-rate test
+        shell: pwsh
+        working-directory: apps/desktop
+        env:
+          DSH_DESKTOP_EVENT_LOOP_P95_BUDGET_MS: '50'
+          DSH_DESKTOP_FPS_MIN_BUDGET: '30'
+        run: node scripts/perf-test.mjs
+
+      - name: Visible-window E2E screenshot
+        shell: pwsh
+        working-directory: apps/desktop
+        run: node scripts/e2e-window.mjs
+
+      - name: UI matrix (60 interactive steps)
+        shell: pwsh
+        working-directory: apps/desktop
+        run: node scripts/ui-matrix.mjs
+
+      - name: Stress test (burst, large output, memory)
+        shell: pwsh
+        working-directory: apps/desktop
+        run: node scripts/stress-test.mjs
+
+      - name: Upload E2E screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-e2e-window
+          path: apps/desktop/dist-app2/e2e-window.png
+          if-no-files-found: ignore
+
+  # Install/upgrade/uninstall cycle gate. Runs on a hosted runner (fresh VM,
+  # destroyed after the job) because the NSIS installer and uninstaller
+  # terminate running instances of the product name and rewrite Start Menu
+  # and registry entries — this must never run on a machine with a live
+  # instance or an existing installation. Independent signal like
+  # desktop-perf: never part of an all-checks-passed verdict.
+  desktop-install-cycle:
+    runs-on: windows-2022
+    name: desktop install / upgrade / uninstall cycle
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Enable Developer Mode (symlink support)
+        shell: pwsh
+        run: >-
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock"
+          /t REG_DWORD /f /v "AllowDevelopmentWithoutDevLicense" /d "1"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          dest: ${{ runner.temp }}/setup-pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Install (immutable)
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Build desktop sources
+        shell: pwsh
+        run: pnpm --filter @deepseek-ai/dsh-desktop run build
+
+      - name: Package flattened production closure
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          node scripts/flatten-deps.mjs
+          node node_modules/electron-builder/cli.js --win nsis --config electron-builder.flat.yml
+
+      - name: Install / upgrade / uninstall cycle
+        shell: pwsh
+        working-directory: apps/desktop
+        run: |
+          $installer = Get-ChildItem dist-app2\dsh-desktop-*.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          node scripts/install-cycle.mjs --upgrade $installer.FullName

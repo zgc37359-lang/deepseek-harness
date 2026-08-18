@@ -1,0 +1,36 @@
+# Packaging profile for the flattened production closure produced by
+# scripts/flatten-deps.mjs. electron-builder must not run its own install
+# step here: the flat tree is already complete, and dependencies are emptied
+# so pnpm never tries to reconcile it against the workspace lockfile.
+appId: com.deepseek-ai.dsh-desktop
+productName: DeepSeek Harness
+directories:
+  app: dist-app-flat
+  output: dist-app2
+electronDist: node_modules/electron/dist
+files:
+  - lib/**/*
+  - dist/renderer/**/*
+  - config/agent-presets/**
+  - package.json
+asar: true
+asarUnpack:
+  - node_modules/@deepseek-ai/dsh-host-directory-picker-native/**
+  - node_modules/koffi/**
+  - node_modules/@koromix/**
+npmRebuild: false
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  artifactName: dsh-desktop-${version}-${arch}.${ext}
+publish:
+  provider: github
+  owner: deepseek-ai
+  repo: deepseek-harness
