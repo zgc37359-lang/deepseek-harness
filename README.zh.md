@@ -1,74 +1,128 @@
-# DeepSeek Harness
+# DeepSeek Harness Desktop
 
 [English](README.md) | 中文
 
-DeepSeek Harness（`dsh`）是由 [DeepSeek AI](https://deepseek.com) 开发的开源 agent harness（智能体框架）。
+> [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Windows 原生客户端——本地优先的 Agent 工作台。无边框自绘界面、托盘常驻、完整 Agent 运行时**进程内嵌**：没有 localhost 服务器、没有浏览器标签页、不占任何端口。你的 Agent，一键即达。
 
-它采用**一切皆插件**的架构，并由 [Cordis](https://github.com/cordiverse/cordis) 驱动，其设计参见论文 [_A Programming Paradigm for Spatiotemporal Composability_](https://github.com/cordiverse/paper)。
+![Electron](https://img.shields.io/badge/Electron-43.4-47848F?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%2B-0078D6?style=flat-square)
+![Version](https://img.shields.io/badge/Version-0.1.0--rc.5-4B8BBE?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)
 
-## 开发者预览
+---
 
-DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**未来将出现破坏兼容性的变更。**
+## ✨ 特性
 
-## 运行
+| | |
+|---|---|
+| 🪟 **无边框窗口** | 完全自绘标题栏，自带窗口菜单（`Alt+Space`）、最大化 / 还原 / 最小化、关窗即入托盘 |
+| 🧲 **托盘常驻** | 关闭窗口只是隐藏；托盘保持应用存活——随时打开主窗口或新建会话，无需碰桌面 |
+| 🔒 **单实例** | 一个应用一棵进程树；再次启动只会聚焦已有窗口 |
+| ⚡ **进程内运行时** | 完整 Harness 插件树运行在主进程内，通过白名单 IPC 桥与界面通信——**零 localhost HTTP 端口、零网络监听** |
+| 🛡️ **加固渲染层** | `sandbox` + `contextIsolation` + 白名单 preload API；主进程是唯一的系统能力边界（窗口、托盘、对话框、剪贴板、下载、更新） |
+| 🔁 **自动更新** | `electron-updater` 全链路接入——从 GitHub Releases 检查 / 下载 / 安装，界面可见状态 |
+| 🧾 **持久化工具授权** | 按工作区、持久、可撤销的 Agent 工具调用审批（文件系统、Shell 等） |
+| 📦 **一键诊断导出** | 导出带时间戳的诊断包（主日志 + 版本/环境快照），方便报 bug |
 
-### 通过 `npm` 运行
+## 🖼️ 预览
 
-安装 `Node.js`，然后运行：
+![桌面窗口](apps/desktop/docs/screenshot.png)
+
+*由 `pnpm run e2e:window` 对打包版应用生成——每次发布前重新截图。*
+
+---
+
+## 🚀 快速开始
+
+### 安装
+
+从 [Releases](https://github.com/zgc37359-lang/deepseek-harness/releases) 下载最新安装包——`dsh-desktop-<version>-x64.exe`（NSIS 每用户安装，无需管理员权限）。
+
+### 从源码构建
 
 ```sh
-npx @deepseek-ai/dsh web
-```
-
-该命令会启动 Web UI，默认地址为 `http://127.0.0.1:3080`。详见 [Web UI 指南](docs/user/guide/index.md)。
-
-### 从源码运行
-
-如需从仓库源码运行：
-
-```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
+git clone https://github.com/zgc37359-lang/deepseek-harness.git
 cd deepseek-harness
 pnpm install
 pnpm run build
-pnpm dsh web
+pnpm --filter @deepseek-ai/dsh-desktop run dist:flat
 ```
 
-## 社区与支持
+NSIS 安装器与 `latest.yml` 更新清单输出到 `apps/desktop/dist-app2/`。
 
-- 欢迎通过 [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions) 提交反馈或 bug 报告。
-- 为你的插件仓库添加 [`dsh-plugin`](https://github.com/topics/dsh-plugin) 话题，便于被发现。
-- 欢迎加入 DeepSeek Harness 企微群：扫码添加企微小助手并填写入群问卷，完成后小助手会邀请你入群。
+### 开发
 
-<table>
-  <thead>
-    <tr>
-      <th align="center">企微小助手</th>
-      <th align="center">入群问卷</th>
-      <th align="center">微信公众号</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="center"><img src="assets/community-wecom-assistant.png" alt="DeepSeek Harness 企微小助手二维码" width="180" height="180"></td>
-      <td align="center"><a href="https://trtgsjkv6r.feishu.cn/share/base/form/shrcnIt5twSVdLGD52KJBckGCgg"><img src="assets/community-wecom-survey.png" alt="DeepSeek Harness 入群问卷二维码" width="180" height="180"></a></td>
-      <td align="center"><img src="assets/community-wechat-official-account.png" alt="DeepSeek Harness 团队微信公众号二维码" width="180" height="180"></td>
-    </tr>
-  </tbody>
-</table>
+```sh
+pnpm --filter @deepseek-ai/dsh-desktop run start
+pnpm --filter @deepseek-ai/dsh-desktop run smoke
+pnpm --filter @deepseek-ai/dsh-desktop run e2e:window
+```
 
-## 参与贡献
+`start` 源码运行，`smoke` 无头启动检查，`e2e:window` 可见窗口 E2E 并生成上面的截图。
 
-参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+---
 
-## 开发
+## 🏗️ 架构
 
-请先阅读[开发指南](docs/development.md)与[架构文档](docs/architecture.md)。
+```
+┌───────────────────────────── Electron main process ─────────────────────────────┐
+│  Window / Tray / Single-instance   ←   custom chrome, lifetime, lock            │
+│  Whitelisted IPC bridge            ←   the only renderer→host channel           │
+│  In-process Harness runtime        ←   full plugin tree, no webserver, no port  │
+│  electron-updater / diagnostics    ←   update state machine, export bundle      │
+└────────────────────────────────────────────────────────────────────────────────┘
+              │ IPC (unary + event streams)
+┌─────────────▼──────────────────────────────────────────────────────────────────┐
+│  Renderer (sandboxed)                                                          │
+│  Custom title bar  +  the full Harness Web UI over the desktop carrier        │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
 
-面向 agent：请遵循 [AGENTS.md](AGENTS.md)。
+关键架构决策记录在本仓库的 [Agent Notes](.agents/notes/)：
 
-## 许可证
+- **[桌面 IPC 面](.agents/notes/implemented/architecture/2026-08-17-desktop-ipc-surface.md)** — 无 localhost HTTP：unary 调用与下行事件流走 Electron IPC；渲染层保持沙箱，主进程拥有全部系统能力。
+- **[共享 RPC 链](.agents/notes/implemented/architecture/2026-08-17-desktop-bridge-rides-shared-rpc-chain.md)** — 桌面桥与 Web 面走同一网关，所有 UI 控件在两种形态下行为一致。
+- **[扁平生产闭包](.agents/notes/implemented/process/2026-08-17-desktop-flat-production-closure.md)** — 可复现的 246 包 `node_modules` 扁平化，打包结果确定。
+
+---
+
+## 🧪 质量门禁
+
+Windows CI 工作流（`windows-desktop.yml`）全部针对**打包后的 exe** 运行：
+
+| 门禁 | 检查内容 |
+|---|---|
+| `perf-smoke` | 冷启动 ≤ 15 秒，峰值内存 ≤ 1 GiB |
+| `perf-test` | 事件循环漂移 p95 ≤ 50 ms，渲染 ≥ 30 FPS |
+| `bench-stream` | 首 token ≤ 2 秒，≥ 100 字符/秒（mock LLM） |
+| `pty-probe` | 打包版中 `node-pty` 原生绑定可加载 |
+| `e2e-window` | 可见窗口启动、Web UI 挂载、最大化/还原与关窗入托盘正常 |
+| `ui-matrix` | 壳/侧栏/输入区/设置/对话 60 步交互矩阵 |
+| `stress-test` | 连发消息、120 行大输出、快速建会话、内存/事件循环预算 |
+| `install-cycle` | 静默安装 → 冒烟 → 本地源升级（含损坏包错误路径）→ 静默卸载 → 残留检查（全新 hosted runner） |
+
+---
+
+## 📌 已知限制
+
+- Win11 悬停 snap-layout 浮层在自绘最大化按钮上不可用；边缘拖拽吸附与 Win+方向键仍可用。
+- 自定义窗口菜单的移动/缩放使用主进程光标循环。
+- 配置代码签名证书前安装包未签名（SmartScreen 警告；自动更新在签名版本发布后才有意义）。
+- 渲染层 CSP 允许 `unsafe-eval`（vendored Cordis Loader 需要求值配置表达式）；渲染层保持沙箱，主进程仍是能力边界。
+
+---
+
+## 🗺️ 路线图
+
+完整工程计划见 [release-testing-plan.md](apps/desktop/release-testing-plan.md)。简版：
+
+- **产品基本盘** — 窗口状态记忆、可见的更新入口、日志轮转、崩溃可见性
+- **桌面体验** — 全局快捷键、系统通知、标题栏跟随主题、更丰富的托盘
+- **平台能力** — `dsh://` 深链、文件拖放、JumpList / 任务栏进度、MCP 管理界面
+- **发布链路** — 代码签名、GitHub Releases 自动化、stable/beta 渠道、差分更新
+
+---
+
+## 📄 许可证
 
 [MIT](LICENSE)
-
-第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
