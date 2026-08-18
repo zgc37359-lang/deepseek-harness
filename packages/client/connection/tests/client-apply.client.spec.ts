@@ -5,6 +5,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apply, type ConnectionHandle } from '../src/client/index.ts'
+import { DesktopApiClient, type DesktopRuntimeBridge } from '../src/client/desktop-api-client.ts'
 import type { RpcMessage } from '../src/client/api.ts'
 import { RpcId } from '../src/client/api.ts'
 import { FixtureApiClient } from '../src/client/fixture.ts'
@@ -49,6 +50,7 @@ class FakeWebSocket extends EventTarget {
 
 afterEach(() => {
   delete (globalThis as Win).location
+  delete (globalThis as { desktop?: unknown }).desktop
   sockets.length = 0
   if (originalWebSocket === undefined) delete (globalThis as WebSocketGlobal).WebSocket
   else globalThis.WebSocket = originalWebSocket
@@ -82,6 +84,16 @@ describe('connection client apply', () => {
   it('reports non-loopback page authority through the connection handle', async () => {
     ;(globalThis as Win).location = { hostname: '192.0.2.20', search: '' }
     expect((await mount()).isLoopback).toBe(false)
+  })
+
+  it('selects the desktop carrier when the preload runtime bridge is present', async () => {
+    const bridge: DesktopRuntimeBridge = {
+      unary: async () => ({ status: 503, body: '{}' }),
+      subscribe: () => () => undefined,
+    }
+    ;(globalThis as { desktop?: { runtime?: DesktopRuntimeBridge } }).desktop = { runtime: bridge }
+    expect((await mount()).api).toBeInstanceOf(DesktopApiClient)
+    expect((await mount()).isLoopback).toBe(true)
   })
 
   it('start() hands out one loop, rejects a second consumer, and stop() aborts the streams', async () => {
