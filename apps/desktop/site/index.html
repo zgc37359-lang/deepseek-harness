@@ -3,125 +3,180 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Harness Desktop — 本地优先的 AI Agent 桌面端</title>
-<meta name="description" content="Harness Desktop：DeepSeek Harness 的 Windows 原生桌面客户端。进程内运行时、零端口、托盘常驻、自动更新。" />
+<title>Harness Desktop</title>
+<meta name="description" content="DeepSeek Harness 的 Windows 桌面客户端。完整 Agent 运行时进程内运行，无本地服务，无浏览器依赖。" />
 <style>
   :root {
-    --bg: #0f1115;
-    --bg-soft: #161a22;
-    --border: #262c38;
-    --text: #e6e9ef;
-    --text-dim: #9aa3b2;
-    --accent: #4b8bbe;
-    --accent-2: #7c5cff;
-    --ok: #22c55e;
+    --bg: #ffffff;
+    --text: #111827;
+    --text-2: #4b5563;
+    --text-3: #9ca3af;
+    --accent: #4d6bfe;
+    --accent-hover: #3b5bdb;
+    --border: #e5e7eb;
+    --code-bg: #f9fafb;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; }
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
-    line-height: 1.7;
-    -webkit-font-smoothing: antialiased;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
   }
-  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-  header.hero {
-    text-align: center;
-    padding: 96px 24px 64px;
-    background:
-      radial-gradient(1200px 500px at 50% -10%, rgba(75,139,190,0.18), transparent 60%),
-      radial-gradient(800px 400px at 80% 0%, rgba(124,92,255,0.10), transparent 60%),
-      var(--bg);
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* 顶部导航 */
+  nav {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 28px 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
-  .logo {
-    display: inline-flex; align-items: center; gap: 12px;
-    font-size: 15px; color: var(--text-dim);
-    border: 1px solid var(--border); border-radius: 999px;
-    padding: 6px 16px; margin-bottom: 28px;
-    background: var(--bg-soft);
-  }
-  .logo .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
-  h1 { font-size: 52px; font-weight: 700; letter-spacing: -1px; }
-  h1 .accent { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .sub { font-size: 19px; color: var(--text-dim); max-width: 640px; margin: 20px auto 0; }
-  .cta { margin-top: 40px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  nav .brand { font-size: 16px; font-weight: 600; color: var(--text); }
+  nav .links a { font-size: 14px; color: var(--text-2); margin-left: 24px; }
+  nav .links a:hover { color: var(--accent); text-decoration: none; }
+
+  /* Hero */
+  .hero { max-width: 960px; margin: 0 auto; padding: 96px 24px 64px; }
+  .hero h1 { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+  .hero .desc { margin-top: 20px; font-size: 17px; color: var(--text-2); max-width: 560px; }
+  .hero .desc strong { color: var(--text); font-weight: 600; }
+  .hero .actions { margin-top: 36px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .btn {
-    display: inline-block; padding: 14px 34px; border-radius: 12px;
-    font-size: 17px; font-weight: 600; text-decoration: none; transition: transform .12s, box-shadow .12s;
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 500;
   }
-  .btn-primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 8px 30px rgba(75,139,190,0.35); }
-  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(75,139,190,0.45); }
-  .btn-ghost { border: 1px solid var(--border); color: var(--text); background: var(--bg-soft); }
-  .btn-ghost:hover { border-color: var(--accent); }
-  .note { margin-top: 14px; font-size: 13px; color: var(--text-dim); }
-  .screens { padding: 72px 0 40px; }
-  .screens h2, section h2 { font-size: 30px; text-align: center; margin-bottom: 8px; }
-  .screens .lead, section .lead { text-align: center; color: var(--text-dim); margin-bottom: 40px; }
-  .shot { border-radius: 16px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 28px; background: var(--bg-soft); }
-  .shot img { width: 100%; display: block; }
-  .shot .cap { padding: 12px 20px; font-size: 14px; color: var(--text-dim); }
-  .features { padding: 48px 0 80px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin-top: 24px; }
-  .card {
-    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 14px;
-    padding: 24px; transition: border-color .15s;
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); text-decoration: none; }
+  .btn-ghost { border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--text-3); text-decoration: none; }
+  .meta { margin-top: 16px; font-size: 13px; color: var(--text-3); }
+
+  /* 截图 */
+  .shots { border-top: 1px solid var(--border); }
+  .shots .inner { max-width: 960px; margin: 0 auto; padding: 56px 24px; }
+  .shots h2, .features h2 { font-size: 20px; font-weight: 600; margin-bottom: 24px; }
+  .shots .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .shots figure { margin: 0; }
+  .shots img {
+    width: 100%; display: block;
+    border: 1px solid var(--border);
+    border-radius: 8px;
   }
-  .card:hover { border-color: var(--accent); }
-  .card .icon { font-size: 26px; }
-  .card h3 { font-size: 17px; margin: 12px 0 6px; }
-  .card p { font-size: 14.5px; color: var(--text-dim); }
-  .highlight { border-color: rgba(124,92,255,0.55); }
-  .badge { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; padding: 2px 10px; margin-left: 8px; vertical-align: middle; }
-  footer { border-top: 1px solid var(--border); padding: 40px 0 60px; text-align: center; color: var(--text-dim); font-size: 14px; }
-  footer a { color: var(--accent); text-decoration: none; }
-  @media (max-width: 640px) {
-    h1 { font-size: 36px; }
-    .sub { font-size: 16px; }
-    header.hero { padding: 64px 16px 40px; }
+  .shots figcaption { margin-top: 8px; font-size: 13px; color: var(--text-3); }
+
+  /* 功能 */
+  .features { max-width: 960px; margin: 0 auto; padding: 56px 24px 80px; }
+  .features ul { list-style: none; }
+  .features li {
+    display: flex;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .features li:last-child { border-bottom: none; }
+  .features .name { flex: 0 0 180px; font-weight: 600; font-size: 15px; }
+  .features .detail { color: var(--text-2); font-size: 15px; max-width: 560px; }
+
+  /* 页脚 */
+  footer { border-top: 1px solid var(--border); padding: 32px 0 48px; }
+  footer .inner { max-width: 960px; margin: 0 auto; padding: 0 24px; font-size: 13px; color: var(--text-3); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+
+  @media (max-width: 720px) {
+    .hero { padding: 56px 24px 40px; }
+    .hero h1 { font-size: 32px; }
+    .shots .row { grid-template-columns: 1fr; }
+    .features li { flex-direction: column; gap: 4px; }
+    .features .name { flex: none; }
   }
 </style>
 </head>
 <body>
 
+<nav>
+  <span class="brand">Harness Desktop</span>
+  <span class="links">
+    <a href="https://github.com/zgc37359-lang/harness-desktop">GitHub</a>
+    <a href="https://github.com/zgc37359-lang/harness-desktop/releases">Releases</a>
+  </span>
+</nav>
+
 <header class="hero">
-  <div class="logo"><span class="dot"></span> DeepSeek Harness 官方架构 · Windows 原生客户端</div>
-  <h1>Harness <span class="accent">Desktop</span></h1>
-  <p class="sub">本地优先的 AI Agent 工作台：完整 Agent 运行时进程内嵌，<strong>零服务器、零端口、零浏览器标签页</strong>。双击安装，你的 Agent 一键即达。</p>
-  <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.0-rc.11-x64.exe">⬇ 下载 Windows 版</a>
-    <a class="btn btn-ghost" href="https://github.com/zgc37359-lang/harness-desktop">GitHub 源码</a>
+  <h1>Harness Desktop</h1>
+  <p class="desc"><strong>DeepSeek Harness 的 Windows 桌面客户端</strong>。完整 Agent 运行时在主进程内运行，通过白名单 IPC 与界面通信——没有本地服务器，没有浏览器依赖。</p>
+  <div class="actions">
+    <a class="btn btn-primary" href="https://github.com/zgc37359-lang/harness-desktop/releases/download/v0.1.0-rc.11/dsh-desktop-0.1.0-rc.11-x64.exe">下载 Windows 版</a>
+    <a class="btn btn-ghost" href="https://github.com/zgc37359-lang/harness-desktop/releases">查看版本记录</a>
   </div>
-  <p class="note">NSIS 每用户安装 · 无需管理员权限 · 支持自动更新</p>
+  <p class="meta">v0.1.0-rc.11 · Windows 10/11 x64 · 约 129 MB · NSIS 每用户安装</p>
 </header>
 
-<div class="wrap">
-  <section class="screens">
-    <h2>真实运行画面</h2>
-    <p class="lead">打包版应用实拍（隔离模式）</p>
-    <div class="shot"><img src="screenshot-main.png" alt="Harness Desktop 主界面" /><div class="cap">主界面：无边框窗口 + 自绘标题栏 + 常驻更新入口</div></div>
-    <div class="shot"><img src="screenshot-chat.png" alt="Harness Desktop 对话" /><div class="cap">对话：流式输出、思考区与正文分离</div></div>
-    <div class="shot"><img src="screenshot-settings.png" alt="Harness Desktop 设置" /><div class="cap">设置：模型、权限、工作区一站式管理</div></div>
-  </section>
-
-  <section class="features">
-    <h2>为什么值得一试</h2>
-    <p class="lead">把 Agent 从浏览器里解放出来</p>
-    <div class="grid">
-      <div class="card"><div class="icon">⚡</div><h3>进程内运行时</h3><p>完整 Harness 插件树跑在主进程里，通过白名单 IPC 与界面通信——没有 localhost 服务器、没有网络监听。</p></div>
-      <div class="card"><div class="icon">🧲</div><h3>托盘常驻</h3><p>关窗即入托盘，随时唤起。新建会话、检查更新，全程不打断你的工作流。</p></div>
-      <div class="card"><div class="icon">🪟</div><h3>无边框自绘窗口</h3><p>自绘标题栏 + 窗口菜单（Alt+Space），最大化 / 还原 / 最小化，干净利落。</p></div>
-      <div class="card"><div class="icon">🛡️</div><h3>加固渲染层</h3><p>sandbox + contextIsolation + 白名单 preload，主进程是唯一的系统能力边界。</p></div>
-      <div class="card highlight"><div class="icon">🖥️</div><h3>PowerShell 执行协议<span class="badge">新</span></h3><p>Agent 内置 Windows PowerShell 5.1 执行规范：-LiteralPath、单阶段工具调用、Get-Command 先查参数、-WhatIf 先验——不再搞错 Windows 命令。</p></div>
-      <div class="card"><div class="icon">🔁</div><h3>自动更新</h3><p>标题栏常驻更新入口，检查 / 下载 / 安装一步到位，保持最新。</p></div>
-      <div class="card"><div class="icon">🧾</div><h3>持久化工具授权</h3><p>按工作区、持久、可撤销的 Agent 工具调用审批，权限清清楚楚。</p></div>
-      <div class="card"><div class="icon">📦</div><h3>一键诊断导出</h3><p>主日志 + 版本/环境快照打包导出，报 bug 不再来回拉扯。</p></div>
+<section class="shots">
+  <div class="inner">
+    <h2>界面</h2>
+    <div class="row">
+      <figure>
+        <img src="screenshot-main.png" alt="主界面" />
+        <figcaption>主界面 · 无边框窗口与自绘标题栏</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshot-chat.png" alt="对话界面" />
+        <figcaption>对话 · 流式输出，思考与正文分离</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshot-settings.png" alt="设置界面" />
+        <figcaption>设置 · 模型、权限、工作区管理</figcaption>
+      </figure>
     </div>
-  </section>
-</div>
+  </div>
+</section>
+
+<section class="features">
+  <h2>功能</h2>
+  <ul>
+    <li>
+      <span class="name">进程内运行时</span>
+      <span class="detail">完整 Harness 插件树运行在主进程内，零 localhost 端口、零网络监听；界面通过白名单 IPC 桥通信。</span>
+    </li>
+    <li>
+      <span class="name">托盘常驻</span>
+      <span class="detail">关闭窗口即隐藏到托盘，随时从托盘打开主窗口或新建会话。</span>
+    </li>
+    <li>
+      <span class="name">PowerShell 执行协议</span>
+      <span class="detail">Agent 内置 Windows PowerShell 5.1 执行规范：<code>-LiteralPath</code>、单阶段工具调用、<code>Get-Command</code> 先查参数、<code>-WhatIf</code> 先验证，降低 Windows 命令出错率。</span>
+    </li>
+    <li>
+      <span class="name">自动更新</span>
+      <span class="detail">基于 electron-updater，从 GitHub Releases 自动检查、下载、安装，标题栏常驻入口。</span>
+    </li>
+    <li>
+      <span class="name">加固渲染层</span>
+      <span class="detail">渲染进程启用 sandbox 与 contextIsolation，白名单 preload API；主进程是唯一的系统能力边界。</span>
+    </li>
+    <li>
+      <span class="name">持久化授权</span>
+      <span class="detail">按工作区管理 Agent 工具调用权限，持久、可撤销，审批记录清晰。</span>
+    </li>
+    <li>
+      <span class="name">诊断导出</span>
+      <span class="detail">一键导出主日志与版本/环境快照，便于问题反馈。</span>
+    </li>
+  </ul>
+</section>
 
 <footer>
-  <div class="wrap">
-    <p><a href="https://github.com/zgc37359-lang/harness-desktop/releases">查看全部版本</a> · <a href="https://github.com/zgc37359-lang/harness-desktop">GitHub 仓库</a> · 基于 <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>（MIT License）</p>
+  <div class="inner">
+    <span>基于 DeepSeek Harness 构建 · MIT License</span>
+    <span><a href="https://github.com/zgc37359-lang/harness-desktop">zgc37359-lang/harness-desktop</a></span>
   </div>
 </footer>
 
