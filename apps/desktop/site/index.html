@@ -3,148 +3,144 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Harness Desktop — 免费的 DeepSeek AI 桌面助手</title>
-<meta name="description" content="完全免费、持续更新的 DeepSeek AI Windows 桌面助手。下载、安装、双击即用——无需任何环境，不用开网页、不用搭服务器、不用懂命令行。" />
-<meta name="theme-color" content="#ffffff" />
-<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<title>Harness Desktop — 本地的 AI 助手，装完即用</title>
+<meta name="description" content="把 DeepSeek AI 助手装进自己的电脑：本地运行、数据不出电脑、无需任何环境、免费开源持续更新。" />
+<meta name="theme-color" content="#0f1115" />
+<link rel="icon" type="image/png" href="favicon.png" />
 <style>
   :root {
-    --bg: #ffffff;
-    --text: #111827;
-    --text-2: #4b5563;
-    --text-3: #9ca3af;
-    --accent: #4d6bfe;
-    --accent-hover: #3b5bdb;
-    --ok: #059669;
-    --ok-bg: #ecfdf5;
-    --border: #e5e7eb;
-    --bg-soft: #f9fafb;
-    --hero-glow: #eef2ff;
+    --bg: #0f1115;
+    --bg-soft: #141823;
+    --bg-card: #12151d;
+    --border: #232a3a;
+    --border-hi: #2f3a52;
+    --text: #e8eaef;
+    --text-2: #a3abbb;
+    --text-3: #68718a;
+    --accent: #5b8def;
+    --accent-soft: rgba(91,141,239,0.14);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+  html { -webkit-font-smoothing: antialiased; }
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 16px;
     line-height: 1.8;
   }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88em; background: var(--bg-card); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; color: #b9c6e8; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 28px; }
 
-  /* 顶部导航（吸顶） */
-  nav {
-    position: sticky; top: 0; z-index: 10;
-    background: rgba(255,255,255,0.86);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--border);
-  }
-  nav .inner {
-    max-width: 1000px; margin: 0 auto; padding: 14px 32px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  nav .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 15.5px; font-weight: 650; color: var(--text); }
-  nav .brand .mark { width: 24px; height: 24px; border-radius: 7px; background: linear-gradient(135deg, var(--accent), var(--accent-hover)); display: inline-flex; align-items: center; justify-content: center; }
-  nav .brand .mark svg { width: 13px; height: 13px; }
-  nav .links a { font-size: 14px; color: var(--text-2); margin-left: 26px; }
-  nav .links a:hover { color: var(--accent); text-decoration: none; }
+  /* 导航 */
+  nav { border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(15,17,21,0.88); backdrop-filter: blur(10px); z-index: 20; }
+  nav .inner { max-width: 980px; margin: 0 auto; padding: 13px 28px; display: flex; align-items: center; justify-content: space-between; }
+  nav .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--text); }
+  nav .brand img { width: 24px; height: 24px; border-radius: 6px; }
+  nav .links a { font-size: 13.5px; color: var(--text-2); margin-left: 26px; }
+  nav .links a:hover { color: var(--text); text-decoration: none; }
 
   /* Hero */
-  .hero {
-    max-width: 1000px; margin: 0 auto; padding: 84px 32px 64px;
+  .hero { text-align: center; padding: 84px 28px 64px; position: relative; }
+  .hero::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(640px 320px at 50% -60px, rgba(91,141,239,0.16), transparent 70%),
+      radial-gradient(420px 240px at 82% 8%, rgba(109,141,255,0.08), transparent 70%);
+    pointer-events: none;
   }
-  .badges { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 7px;
-    font-size: 13px; font-weight: 600;
-    padding: 5px 14px; border-radius: 999px;
-  }
-  .badge-free { color: var(--ok); background: var(--ok-bg); border: 1px solid #a7f3d0; }
-  .badge-update { color: var(--accent); background: var(--hero-glow); border: 1px solid #c7d2fe; }
-  .hero h1 { font-size: 52px; font-weight: 750; letter-spacing: -0.03em; line-height: 1.12; }
-  .hero .desc { margin-top: 22px; font-size: 18px; color: var(--text-2); max-width: 640px; }
-  .hero .desc strong { color: var(--text); font-weight: 600; }
-  .hero .points { margin-top: 32px; list-style: none; }
-  .hero .points li { display: flex; align-items: flex-start; gap: 13px; padding: 9px 0; }
-  .hero .points .tick {
-    flex: none; width: 22px; height: 22px; margin-top: 4px;
-    border-radius: 50%; background: var(--ok-bg); color: var(--ok);
-    font-size: 12.5px; font-weight: 700;
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-  .hero .points .body b { color: var(--text); font-weight: 600; font-size: 16px; }
-  .hero .points .body .sub { display: block; font-size: 14px; color: var(--text-3); line-height: 1.55; }
-  .hero .actions { margin-top: 36px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  .btn {
-    display: inline-block; padding: 13px 28px; border-radius: 8px;
-    font-size: 16px; font-weight: 550; transition: background .12s, border-color .12s;
-  }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: var(--accent-hover); text-decoration: none; }
+  .hero > * { position: relative; }
+  .hero .logo { width: 96px; height: 96px; border-radius: 24px; box-shadow: 0 16px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08); }
+  .hero h1 { margin: 30px auto 0; font-size: 50px; font-weight: 750; letter-spacing: -0.025em; line-height: 1.1; max-width: 760px; }
+  .hero h1 .accent { background: linear-gradient(92deg, #9db9ff, #6d8dff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .sub { margin: 20px auto 0; font-size: 18px; color: var(--text-2); max-width: 580px; }
+  .hero .actions { margin-top: 36px; display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 13px 32px; border-radius: 9px; font-size: 16px; font-weight: 600; transition: all .15s; }
+  .btn-primary { background: linear-gradient(180deg, #f4f6fa, #dde3ee); color: #0c0f16; box-shadow: 0 6px 24px rgba(0,0,0,0.4); }
+  .btn-primary:hover { background: #fff; text-decoration: none; transform: translateY(-1px); }
   .btn-ghost { border: 1px solid var(--border); color: var(--text); }
   .btn-ghost:hover { border-color: var(--text-3); text-decoration: none; }
-  .meta { margin-top: 18px; font-size: 13px; color: var(--text-3); }
-  .meta b { color: var(--ok); font-weight: 600; }
+  .meta { margin-top: 20px; font-size: 13.5px; color: var(--text-3); }
+  .meta span + span::before { content: "·"; margin: 0 9px; color: var(--border); }
+  .meta code { background: none; border: none; padding: 0; }
 
-  /* 三步上手 */
-  .steps { border-top: 1px solid var(--border); background: var(--bg-soft); }
-  .steps .inner { max-width: 1000px; margin: 0 auto; padding: 64px 32px 72px; }
-  .steps h2, .shots h2, .features h2 { font-size: 22px; font-weight: 650; margin-bottom: 10px; }
-  .steps .lead, .shots .lead, .features .lead { font-size: 15px; color: var(--text-3); margin-bottom: 36px; }
-  .steps .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
-  .steps .step .num { font-size: 28px; font-weight: 750; color: var(--accent); letter-spacing: -0.02em; }
-  .steps .step .name { margin-top: 6px; font-size: 16px; font-weight: 650; }
-  .steps .step .detail { margin-top: 6px; font-size: 14.5px; color: var(--text-3); }
-
-  /* 截图 */
-  .shots .inner { max-width: 1000px; margin: 0 auto; padding: 72px 32px; }
-  .shots .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .shots figure { margin: 0; }
-  .shots img {
-    width: 100%; display: block;
-    border: 1px solid var(--border); border-radius: 10px; background: #fff;
-    box-shadow: 0 1px 3px rgba(17,24,39,0.05);
+  /* 卖点 */
+  .points { border-top: 1px solid var(--border); }
+  .points .grid { max-width: 980px; margin: 0 auto; padding: 64px 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 26px 28px; transition: border-color .18s, transform .18s;
   }
-  .shots figcaption { margin-top: 10px; font-size: 13.5px; color: var(--text-3); }
-
-  /* 功能 */
-  .features .inner { max-width: 1000px; margin: 0 auto; padding: 72px 32px 88px; }
-  .features ul { list-style: none; }
-  .features li { display: flex; gap: 22px; padding: 16px 0; border-bottom: 1px solid var(--border); }
-  .features li:last-child { border-bottom: none; }
-  .features .name { flex: 0 0 190px; font-weight: 600; font-size: 15.5px; }
-  .features .detail { color: var(--text-2); font-size: 15px; max-width: 580px; }
-  .features code {
-    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-    font-size: 13px; background: var(--bg-soft); border: 1px solid var(--border);
-    border-radius: 4px; padding: 1px 6px;
+  .card:hover { border-color: var(--border-hi); transform: translateY(-2px); }
+  .card .icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(91,141,239,0.22), rgba(109,141,255,0.08));
+    border: 1px solid rgba(91,141,239,0.3);
+    display: flex; align-items: center; justify-content: center;
   }
+  .card .icon svg { width: 22px; height: 22px; stroke: #9db9ff; }
+  .card h3 { margin-top: 18px; font-size: 18px; font-weight: 650; }
+  .card p { margin-top: 8px; font-size: 14.5px; color: var(--text-2); }
 
-  /* 免费说明 */
-  .free { border-top: 1px solid var(--border); }
-  .free .inner { max-width: 1000px; margin: 0 auto; padding: 64px 32px 80px; text-align: center; }
-  .free h2 { font-size: 24px; font-weight: 700; }
-  .free .big { margin-top: 14px; font-size: 17px; color: var(--text-2); }
-  .free .big b { color: var(--ok); }
-  .free .note { margin-top: 10px; font-size: 14px; color: var(--text-3); }
+  /* 截图（窗口框架） */
+  .shots { border-top: 1px solid var(--border); background: var(--bg-soft); }
+  .shots .inner { max-width: 980px; margin: 0 auto; padding: 68px 28px; }
+  .shots .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .window {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+  }
+  .window .titlebar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 9px 12px; background: #1a1f2c; border-bottom: 1px solid var(--border);
+  }
+  .window .titlebar .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .window .titlebar .dot:nth-child(1) { background: #ff5f57; }
+  .window .titlebar .dot:nth-child(2) { background: #febc2e; }
+  .window .titlebar .dot:nth-child(3) { background: #28c840; }
+  .window .titlebar .name { margin-left: 8px; font-size: 11.5px; color: var(--text-3); flex: 1; text-align: center; font-family: ui-monospace, Consolas, monospace; }
+  .window img { width: 100%; display: block; }
+  .shots figcaption { margin-top: 12px; font-size: 13px; color: var(--text-3); text-align: center; }
 
-  /* 页脚 */
-  footer { border-top: 1px solid var(--border); padding: 36px 0 52px; }
-  footer .inner { max-width: 1000px; margin: 0 auto; padding: 0 32px; font-size: 13px; color: var(--text-3); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-  footer a { color: var(--text-3); }
-  footer a:hover { color: var(--accent); }
+  /* 特性细节 */
+  .detail { max-width: 980px; margin: 0 auto; padding: 56px 28px 8px; }
+  .detail h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+  .detail .lead { margin-top: 6px; font-size: 14.5px; color: var(--text-3); }
+  .detail ul { list-style: none; margin-top: 22px; }
+  .detail li { display: flex; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--border); }
+  .detail li:last-child { border-bottom: none; }
+  .detail .name { flex: 0 0 170px; color: var(--text); font-weight: 600; font-size: 14.5px; }
+  .detail .desc { color: var(--text-2); font-size: 14.5px; }
+
+  /* 安装 */
+  .install { max-width: 980px; margin: 0 auto; padding: 56px 28px 72px; }
+  .install h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+  .install .steps { margin-top: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .install .step { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; }
+  .install .step .num { font-size: 13px; font-weight: 700; color: var(--accent); font-family: ui-monospace, Consolas, monospace; }
+  .install .step h3 { margin-top: 8px; font-size: 16px; font-weight: 650; }
+  .install .step p { margin-top: 6px; font-size: 14px; color: var(--text-2); }
+  .install .term {
+    margin-top: 26px; background: #0b0e14; border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13.5px; line-height: 2; color: #b9c6e8;
+  }
+  .install .term .prompt { color: #5b8def; }
+  .install .term .dim { color: var(--text-3); }
+
+  footer { border-top: 1px solid var(--border); padding: 30px 0 48px; }
+  footer .inner { max-width: 980px; margin: 0 auto; padding: 0 28px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--text-3); }
 
   @media (max-width: 760px) {
-    .hero { padding: 56px 24px 48px; }
+    .hero { padding: 56px 20px 44px; }
     .hero h1 { font-size: 34px; }
-    .hero .desc { font-size: 16px; }
-    .steps .row { grid-template-columns: 1fr; gap: 24px; }
-    .shots .row { grid-template-columns: 1fr; }
-    .features li { flex-direction: column; gap: 4px; }
-    .features .name { flex: none; }
-    nav .inner { padding: 12px 20px; }
+    .hero .sub { font-size: 16px; }
+    .points .grid { grid-template-columns: 1fr; padding: 44px 20px; }
+    .shots .grid { grid-template-columns: 1fr; }
+    .install .steps { grid-template-columns: 1fr; }
+    .detail li { flex-direction: column; gap: 2px; }
+    .detail .name { flex: none; }
   }
 </style>
 </head>
@@ -152,132 +148,115 @@
 
 <nav>
   <div class="inner">
-    <a class="brand" href="/">
-      <span class="mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 5v14M18 5v14M6 12h12" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></svg></span>
-      Harness Desktop
-    </a>
+    <a class="brand" href="/"><img src="favicon.png" alt="" /> Harness Desktop</a>
     <span class="links">
       <a href="https://github.com/zgc37359-lang/harness-desktop">GitHub</a>
-      <a href="https://github.com/zgc37359-lang/harness-desktop/releases">更新记录</a>
+      <a href="https://github.com/zgc37359-lang/harness-desktop/releases">Releases</a>
     </span>
   </div>
 </nav>
 
 <header class="hero">
-  <div class="badges">
-    <span class="badge badge-free">完全免费</span>
-    <span class="badge badge-update">持续更新中</span>
-  </div>
-  <h1>把 DeepSeek AI 装进你的 Windows</h1>
-  <p class="desc"><strong>免费、本地、即装即用</strong>。下载安装后双击打开，不用开网页、不用搭服务器、不用懂命令行。</p>
-  <ul class="points">
-    <li><span class="tick">✓</span><span class="body"><b>完全免费</b>，无订阅、无内购、无隐藏收费<span class="sub">开源项目，功能全部开放</span></span></li>
-    <li><span class="tick">✓</span><span class="body"><b>持续更新</b>，新功能定期发布<span class="sub">基于 GitHub 发布，自动更新提醒</span></span></li>
-    <li><span class="tick">✓</span><span class="body"><b>无需安装任何环境</b>，装完就能用<span class="sub">不需要 Node.js / Python 等任何运行时，Windows 10/11 直接跑</span></span></li>
-    <li><span class="tick">✓</span><span class="body"><b>帮你干活</b>：写代码、查资料、整理文件<span class="sub">重要操作会先征求你的同意</span></span></li>
-    <li><span class="tick">✓</span><span class="body"><b>本地运行</b>，你的数据留在自己电脑里<span class="sub">不需要注册账号，随时从托盘唤回</span></span></li>
-  </ul>
+  <img class="logo" src="logo.png" alt="Harness Desktop" />
+  <h1>本地的 AI 助手，<span class="accent">装完即用</span></h1>
+  <p class="sub">把 DeepSeek AI 装进自己的 Windows 电脑。数据不出机器，环境不用配，重要操作先问你。</p>
   <div class="actions">
-    <a class="btn btn-primary" href="https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.0-x64.exe">免费下载 Windows 版</a>
-    <a class="btn btn-ghost" href="https://github.com/zgc37359-lang/harness-desktop/releases">查看更新记录</a>
+    <a class="btn btn-primary" href="https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.0-x64.exe">免费下载</a>
+    <a class="btn btn-ghost" href="https://github.com/zgc37359-lang/harness-desktop">查看源码</a>
   </div>
-  <p class="meta">v0.1.0 · Windows 10/11 x64 · 约 129 MB · <b>免费 · 持续更新 · 无需环境</b></p>
+  <p class="meta"><span><code>v0.1.0</code></span><span>Windows 10/11 x64</span><span>129 MB</span><span>MIT 开源</span></p>
+  <p class="meta"><span><code>v0.1.0</code></span><span>Windows 10/11 x64</span><span>129 MB</span><span>MIT 开源</span></p>
 </header>
 
-<section class="steps">
-  <div class="inner">
-    <h2>三步上手</h2>
-    <p class="lead">从下载到使用，不超过两分钟</p>
-    <div class="row">
-      <div class="step">
-        <div class="num">01</div>
-        <div class="name">下载安装包</div>
-        <div class="detail">点击上方按钮，下载约 129 MB 的安装包。</div>
-      </div>
-      <div class="step">
-        <div class="num">02</div>
-        <div class="name">双击安装</div>
-        <div class="detail">NSIS 每用户安装，无需管理员权限，不碰系统目录。</div>
-      </div>
-      <div class="step">
-        <div class="num">03</div>
-        <div class="name">打开即用</div>
-        <div class="detail">无需任何环境配置，直接开始和你的 AI 助手对话。</div>
-      </div>
+<section class="points">
+  <div class="grid">
+    <div class="card">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 6v6c0 5.2 3.4 8.7 8 10 4.6-1.3 8-4.8 8-10V6l-8-3.5z"/><rect x="9.4" y="10.4" width="5.2" height="4.2" rx="1.2"/><path d="M12 11.2v1.6"/></svg></div>
+      <h3>数据不出电脑</h3>
+      <p>没有服务器、没有云端、没有回传。对话、文件、记录全部留在本机。</p>
+    </div>
+    <div class="card">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8.2 12 3 3 8.2v7.6L12 21l9-5.2V8.2z"/><path d="M3.3 8.4 12 13.4l8.7-5"/><path d="M12 13.4V21"/></svg></div>
+      <h3>装完即用，零环境</h3>
+      <p>不需要 Node.js、Python 或任何运行时。一个 129 MB 安装包，双击即用。</p>
+    </div>
+    <div class="card">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 11 23l-8-8L13 3h7.6v7.6z"/><circle cx="17" cy="7" r="1.6"/></svg></div>
+      <h3>免费，且持续更新</h3>
+      <p>MIT 开源，无订阅、无内购。新功能随版本定期发布，自动更新提醒。</p>
+    </div>
+    <div class="card">
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-8.5 8.5H4.5l1.8-2.7A8.5 8.5 0 1 1 21 12z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/></svg></div>
+      <h3>重要操作先问你</h3>
+      <p>删文件、跑命令、动系统前先征求同意，权限按工作区管理、随时可撤销。</p>
     </div>
   </div>
 </section>
 
 <section class="shots">
   <div class="inner">
-    <h2>界面预览</h2>
-    <p class="lead">打包版应用实拍</p>
-    <div class="row">
-      <figure>
-        <img src="screenshot-main.png" alt="主界面" />
-        <figcaption>主界面 · 无边框窗口，标题栏常驻更新入口</figcaption>
-      </figure>
-      <figure>
+    <div class="grid">
+      <figure class="window">
+        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">对话</span></div>
         <img src="screenshot-chat.png" alt="对话界面" />
-        <figcaption>对话 · 流式输出，思考与回答分离</figcaption>
       </figure>
-      <figure>
+      <figure class="window">
+        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">主界面</span></div>
+        <img src="screenshot-main.png" alt="主界面" />
+      </figure>
+      <figure class="window">
+        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">设置</span></div>
         <img src="screenshot-settings.png" alt="设置界面" />
-        <figcaption>设置 · 模型、权限、工作区管理</figcaption>
       </figure>
     </div>
+    <p style="text-align:center;margin-top:22px;font-size:13px;color:var(--text-3)">打包版应用实拍 · 无边框窗口 · 深色界面</p>
   </div>
 </section>
 
-<section class="features">
-  <div class="inner">
-    <h2>功能</h2>
-    <p class="lead">面向开发者</p>
+<div class="wrap">
+  <section class="detail">
+    <h2>面向开发者</h2>
+    <p class="lead">完整 Harness 插件架构，进程内运行</p>
     <ul>
-      <li>
-        <span class="name">进程内运行时</span>
-        <span class="detail">完整 Harness 插件树运行在主进程内，零 localhost 端口、零网络监听；界面通过白名单 IPC 桥通信。</span>
-      </li>
-      <li>
-        <span class="name">托盘常驻</span>
-        <span class="detail">关闭窗口即隐藏到托盘，随时从托盘打开主窗口或新建会话。</span>
-      </li>
-      <li>
-        <span class="name">PowerShell 执行协议</span>
-        <span class="detail">Agent 内置 Windows PowerShell 5.1 执行规范：<code>-LiteralPath</code>、单阶段工具调用、<code>Get-Command</code> 先查参数、<code>-WhatIf</code> 先验证，降低 Windows 命令出错率。</span>
-      </li>
-      <li>
-        <span class="name">自动更新</span>
-        <span class="detail">基于 electron-updater，从 GitHub Releases 自动检查、下载、安装，标题栏常驻入口。</span>
-      </li>
-      <li>
-        <span class="name">加固渲染层</span>
-        <span class="detail">渲染进程启用 sandbox 与 contextIsolation，白名单 preload API；主进程是唯一的系统能力边界。</span>
-      </li>
-      <li>
-        <span class="name">持久化授权</span>
-        <span class="detail">按工作区管理 Agent 工具调用权限，持久、可撤销，审批记录清晰。</span>
-      </li>
-      <li>
-        <span class="name">诊断导出</span>
-        <span class="detail">一键导出主日志与版本/环境快照，便于问题反馈。</span>
-      </li>
+      <li><span class="name">进程内运行时</span><span class="desc">完整插件树在主进程内，<code>零端口</code>、<code>零网络监听</code>，界面走白名单 IPC 桥。</span></li>
+      <li><span class="name">PowerShell 执行协议</span><span class="desc">Agent 内置 Windows PowerShell 5.1 规范：<code>-LiteralPath</code>、<code>Get-Command</code> 先查参数、<code>-WhatIf</code> 先验证。</span></li>
+      <li><span class="name">加固渲染层</span><span class="desc"><code>sandbox</code> + <code>contextIsolation</code>，白名单 preload，主进程为唯一能力边界。</span></li>
+      <li><span class="name">自动更新</span><span class="desc">electron-updater 接入 GitHub Releases，标题栏常驻检查入口，静默下载。</span></li>
+      <li><span class="name">持久化授权</span><span class="desc">按工作区管理工具权限，可撤销，审批记录清晰可查。</span></li>
+      <li><span class="name">诊断导出</span><span class="desc">一键导出主日志与环境快照，问题反馈不用来回拉扯。</span></li>
     </ul>
-  </div>
-</section>
+  </section>
 
-<section class="free">
-  <div class="inner">
-    <h2>完全免费，持续更新</h2>
-    <p class="big">没有任何收费计划。<b>永久免费</b>，功能全部开放，新版本持续发布。</p>
-    <p class="note">基于 MIT 开源协议 · 源码公开 · 欢迎反馈问题与建议</p>
-  </div>
-</section>
+  <section class="install">
+    <h2>安装</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">01</div>
+        <h3>下载</h3>
+        <p>点击上方按钮，获取 <code>dsh-desktop-0.1.0-x64.exe</code>（129 MB）。</p>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h3>安装</h3>
+        <p>双击运行。NSIS 每用户安装，<code>无需管理员权限</code>。</p>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h3>启动</h3>
+        <p>从开始菜单或桌面图标打开，直接开始对话。</p>
+      </div>
+    </div>
+    <div class="term">
+      <span class="prompt">PS&gt;</span> <span class="dim"># 下载后</span><br/>
+      <span class="prompt">PS&gt;</span> .dsh-desktop-0.1.0-x64.exe <span class="dim"># 双击安装，两分钟上手</span>
+    </div>
+  </section>
+</div>
 
 <footer>
   <div class="inner">
-    <span>© 2026 Harness Desktop · 基于 DeepSeek Harness 构建 · MIT License</span>
-    <span>由独立开发者维护 · <a href="https://github.com/zgc37359-lang/harness-desktop">GitHub</a></span>
+    <span>© 2026 Harness Desktop · MIT License · 基于 <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></span>
+    <span><a href="https://github.com/zgc37359-lang/harness-desktop">GitHub</a> · 由独立开发者维护</span>
   </div>
 </footer>
 
