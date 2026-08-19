@@ -18,6 +18,7 @@ import { ImageGallery, type ImageLoader } from '@deepseek-ai/dsh-client-ui-attac
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { messageImageLabels } from '../image-labels.ts'
 import { ReasoningRow } from './ReasoningRow.tsx'
+import { stripLeakedThinking } from './strip-leaked-thinking.ts'
 import css from './AssistantMarkdown.module.css'
 
 export interface AssistantMarkdownProps {
@@ -58,7 +59,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
         rendered.push(
           <MarkdownText
             key={i}
-            text={block.text}
+            text={stripLeakedThinking(block.text)}
             streaming={streaming}
             codeLabels={codeLabels}
             fileMentions={mentions}
