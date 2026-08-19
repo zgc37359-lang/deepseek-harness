@@ -23,6 +23,12 @@ interface OpenBlock {
   name?: string
 }
 
+/** The open thinking tag the model occasionally leaks into delta.content. */
+const OPEN_THINKING_TAG = '<thinking>'
+
+/** The matching close tag. */
+const CLOSE_THINKING_TAG = '</thinking>'
+
 /**
  * Map the wire finish_reason vocabulary to the harness FinishReason.
  * @param reason - the wire `finish_reason` string.
@@ -91,6 +97,15 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
   const order: OpenBlock[] = []
   let pendingFinish: FinishReason | undefined
   let pendingUsage: TokenUsage | undefined
+  // Content-sourced thinking state: the model occasionally echoes its CoT
+  // into delta.content wrapped in <thinking> tags. Only a content stream that
+  // BEGINS with the open tag is treated as a leak; mid-text literals stay
+  // text. contentThinkingPos is the content stream's position inside the
+  // reasoning block, used to drop echoes of reasoning_content.
+  let contentPending = ''
+  let contentThinking = false
+  let contentSawText = false
+  let contentThinkingPos = 0
 
   function open(kind: OpenBlock['kind']): OpenBlock {
     const block: OpenBlock = { index: nextIndex++, kind, text: '' }
@@ -98,8 +113,60 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
     return block
   }
 
+  /** Length of the longest suffix of text that is a prefix of the close tag. */
+  function partialCloseTagLength(text: string): number {
+    const max = Math.min(text.length, CLOSE_THINKING_TAG.length)
+    for (let k = max; k >= 1; k--) {
+      const suffix = text.slice(-k).toLowerCase()
+      if (CLOSE_THINKING_TAG.startsWith(suffix)) return k
+    }
+    return 0
+  }
+
+  /**
+   * Append a content-sourced thinking fragment to the reasoning block,
+   * dropping fragments that merely continue text reasoning_content already
+   * recorded (the model streams the same CoT into both channels).
+   */
+  function* appendContentReasoning(text: string): Generator<StreamChunk> {
+    if (text.length === 0) return
+    if (reasoningBlock === undefined) {
+      reasoningBlock = open('reasoning')
+      yield { type: 'block-start', index: reasoningBlock.index, blockType: 'reasoning' }
+    }
+    if (contentThinkingPos < reasoningBlock.text.length) {
+      const expected = reasoningBlock.text.slice(contentThinkingPos)
+      if (expected.startsWith(text)) {
+        contentThinkingPos += text.length
+        return
+      }
+    }
+    reasoningBlock.text += text
+    contentThinkingPos = reasoningBlock.text.length
+    yield { type: 'reasoning-delta', index: reasoningBlock.index, text }
+  }
+
+  /** Append one visible text fragment, opening the text block on demand. */
+  function* appendText(text: string): Generator<StreamChunk> {
+    if (text.length === 0) return
+    if (textBlock === undefined) {
+      textBlock = open('text')
+      yield { type: 'block-start', index: textBlock.index, blockType: 'text' }
+    }
+    textBlock.text += text
+    yield { type: 'text-delta', index: textBlock.index, text }
+  }
+
   for await (const payload of payloads) {
     if (payload === DONE) {
+      // Flush any buffered content: an unclosed thinking segment or trailing
+      // text that never resolved into a tag still belongs in the message.
+      if (contentThinking) {
+        yield* appendContentReasoning(contentPending)
+      } else if (contentPending.length > 0) {
+        yield* appendText(contentPending)
+      }
+      contentPending = ''
       for (const block of order) {
         yield { type: 'block-end', index: block.index, block: closeBlock(block) }
       }
@@ -141,12 +208,53 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
 
       const content = delta?.content
       if (typeof content === 'string' && content.length > 0) {
-        if (!textBlock) {
-          textBlock = open('text')
-          yield { type: 'block-start', index: textBlock.index, blockType: 'text' }
+        contentPending += content
+        while (contentPending.length > 0) {
+          if (!contentThinking) {
+            if (contentSawText) {
+              yield* appendText(contentPending)
+              contentPending = ''
+              continue
+            }
+            const trimmed = contentPending.replace(/^\s+/, '')
+            const lower = trimmed.toLowerCase()
+            if (lower.startsWith(OPEN_THINKING_TAG)) {
+              contentThinking = true
+              contentPending = trimmed.slice(OPEN_THINKING_TAG.length)
+              continue
+            }
+            // A partial open tag at the stream start waits for more data.
+            if (OPEN_THINKING_TAG.startsWith(lower) && trimmed.length < OPEN_THINKING_TAG.length) {
+              break
+            }
+            contentSawText = true
+            yield* appendText(contentPending)
+            contentPending = ''
+            continue
+          }
+          // Inside a content-sourced thinking block: find the close tag.
+          const closeAt = contentPending.toLowerCase().indexOf(CLOSE_THINKING_TAG)
+          if (closeAt !== -1) {
+            yield* appendContentReasoning(contentPending.slice(0, closeAt))
+            contentPending = contentPending.slice(closeAt + CLOSE_THINKING_TAG.length)
+            contentThinking = false
+            contentSawText = true
+            if (contentPending.length > 0) {
+              yield* appendText(contentPending)
+              contentPending = ''
+            }
+            continue
+          }
+          // A close tag split across fragments: hold its partial tail back.
+          const hold = partialCloseTagLength(contentPending)
+          if (hold > 0) {
+            yield* appendContentReasoning(contentPending.slice(0, contentPending.length - hold))
+            contentPending = contentPending.slice(contentPending.length - hold)
+            break
+          }
+          yield* appendContentReasoning(contentPending)
+          contentPending = ''
         }
-        textBlock.text += content
-        yield { type: 'text-delta', index: textBlock.index, text: content }
       }
 
       for (const call of delta?.tool_calls ?? []) {
@@ -157,7 +265,11 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
           yield { type: 'block-start', index: block.index, blockType: 'tool-call' }
         }
         if (call.id !== undefined) block.callId = call.id
-        if (call.function?.name !== undefined) block.name = call.function.name
+        // Some gateways repeat the tool-call name as "" on continuation
+        // deltas; a non-empty first name must win, never be overwritten.
+        if (typeof call.function?.name === 'string' && call.function.name.length > 0) {
+          block.name = call.function.name
+        }
         const fragment = call.function?.arguments ?? ''
         block.text += fragment
         yield {

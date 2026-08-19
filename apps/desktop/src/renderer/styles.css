@@ -58,6 +58,31 @@ body {
   -webkit-app-region: no-drag;
 }
 
+.titlebar__updates {
+  -webkit-app-region: no-drag;
+  padding: 0 8px;
+}
+
+.titlebar__update-button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--menu-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.titlebar__update-button:hover:not(:disabled) {
+  background: var(--control-hover);
+}
+
+.titlebar__update-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .titlebar__button {
   width: 46px;
   height: var(--titlebar-height);
@@ -152,5 +177,43 @@ body {
 }
 
 .desktop-placeholder__button:hover {
+  background: var(--control-hover);
+}
+
+.crash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  background: #0f1115;
+  color: var(--text);
+}
+
+.crash-overlay__title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.crash-overlay__body {
+  font-size: 14px;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.crash-overlay__button {
+  padding: 8px 18px;
+  border: 1px solid var(--menu-border);
+  border-radius: 4px;
+  background: var(--titlebar-bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.crash-overlay__button:hover {
   background: var(--control-hover);
 }

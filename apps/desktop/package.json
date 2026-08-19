@@ -36,7 +36,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "deepseek-ai",
+      "owner": "zgc37359-lang",
       "repo": "deepseek-harness"
     }
   },
@@ -57,9 +57,11 @@
     "probe:pty": "electron . --pty-probe",
     "perf:smoke": "node scripts/perf-smoke.mjs",
     "perf:test": "node scripts/perf-test.mjs",
+    "soak:test": "node scripts/soak-test.mjs",
     "bench:stream": "node scripts/bench-stream.mjs",
     "generate:icon": "node scripts/generate-icon.mjs",
     "e2e:window": "node scripts/e2e-window.mjs",
+    "install:cycle": "node scripts/install-cycle.mjs",
     "dist": "pnpm run build && electron-builder --win nsis",
     "dist:flat": "node scripts/flatten-deps.mjs && node node_modules/electron-builder/cli.js --win nsis --config electron-builder.flat.yml"
   },

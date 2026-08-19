@@ -16,11 +16,11 @@
 | | |
 |---|---|
 | 🪟 **无边框窗口** | 完全自绘标题栏，自带窗口菜单（`Alt+Space`）、最大化 / 还原 / 最小化、关窗即入托盘 |
-| 🧲 **托盘常驻** | 关闭窗口只是隐藏；托盘保持应用存活——随时打开主窗口或新建会话，无需碰桌面 |
+| 🧲 **托盘常驻** | 关闭窗口只是隐藏；托盘保持应用存活——随时打开主窗口或新建会话（托盘 → 新建会话），无需碰桌面 |
 | 🔒 **单实例** | 一个应用一棵进程树；再次启动只会聚焦已有窗口 |
 | ⚡ **进程内运行时** | 完整 Harness 插件树运行在主进程内，通过白名单 IPC 桥与界面通信——**零 localhost HTTP 端口、零网络监听** |
 | 🛡️ **加固渲染层** | `sandbox` + `contextIsolation` + 白名单 preload API；主进程是唯一的系统能力边界（窗口、托盘、对话框、剪贴板、下载、更新） |
-| 🔁 **自动更新** | `electron-updater` 全链路接入——从 GitHub Releases 检查 / 下载 / 安装，界面可见状态 |
+| 🔁 **自动更新** | `electron-updater` 全链路接入——从 fork 的 GitHub Releases 检查 / 下载 / 安装，标题栏常驻可见入口 |
 | 🧾 **持久化工具授权** | 按工作区、持久、可撤销的 Agent 工具调用审批（文件系统、Shell 等） |
 | 📦 **一键诊断导出** | 导出带时间戳的诊断包（主日志 + 版本/环境快照），方便报 bug |
 
@@ -106,12 +106,32 @@ Windows CI 工作流（`windows-desktop.yml`）全部针对**打包后的 exe** 
 
 ---
 
+## 🩹 本批修复（2026-08）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| 1 | 模型思考内容泄漏进可见输出（模型把 CoT 以 `<thinking>` 形式写进 `delta.content`） | `llm-deepseek` translate 把「以 `<thinking>` 开头的 content 流」路由进 reasoning 块（支持标签跨分片、与 `reasoning_content` 去重）；serialize 在回放时剥离开头的 `<thinking>` 段，历史不再把泄漏喂回模型 |
+| 2 | 托盘「新建会话」无响应（渲染进程没有事件消费者） | 渲染进程现在走侧栏新建会话流程，失败回退 `session.create` RPC |
+| 3 | fork 安装包自动更新必失败（`publish` 指向上游仓库），且 Web UI 挂载后更新入口消失 | `publish` 改指向 `zgc37359-lang/deepseek-harness`；标题栏新增常驻更新入口（状态 / 检查更新 / 重启安装） |
+| 4 | 下载使用 Windows 保留设备名（CON、NUL 等）会生成打不开的「幽灵文件」却报成功 | 文件名清洗为保留基名加前缀、结尾点/空格归一化 |
+| 5 | `main.log` 无限增长 | 按大小轮转（`DSH_DESKTOP_LOG_MAX_BYTES` 默认 10 MiB；`DSH_DESKTOP_LOG_KEEP` 默认 3） |
+| 6 | 渲染进程崩溃两次后窗口静默死亡 | 有界自动重载（2 次），之后显示崩溃覆盖层 + 「重新加载」按钮 |
+| 7 | 畸形 `dsh-bundle` URL 可能在协议处理器内抛异常 | `matchBundleRequest` 防御式解码并返回 404 |
+| 8 | 占位页 manifest 轮询 30 秒后放弃 | 指数退避持续轮询直到运行时挂载（组件卸载时中止） |
+| 9 | `packages/client/connection/src` 残留未跟踪的编译产物 | 已删除并加入 .gitignore |
+| 10 | 每次启动都记录 `fs.Stats constructor is deprecated`（Electron 运行时来源） | 同类警告每条只记一次；来源记录于下方 |
+
+以上每项修复均以 TDD（先测试后实现）落地，并扩展了 `e2e-window` 门禁：断言标题栏更新入口、托盘新建会话流程、渲染崩溃恢复；e2e 还新增隔离模式（`DSH_E2E_ISOLATED=1`），可在实例运行中旁路测试且不触碰其数据。
+
 ## 📌 已知限制
 
+- 启动时的 `fs.Stats constructor is deprecated.` 警告来自 Electron 运行时内嵌 Node（纯 Node 无法复现、依赖源码中不存在）；无害，每条只记录一次。
+- 修复 #1 之前录制的旧会话，历史正文可能仍显示泄漏的 `<thinking>` 文本；新输出与模型侧回放均已干净。
 - Win11 悬停 snap-layout 浮层在自绘最大化按钮上不可用；边缘拖拽吸附与 Win+方向键仍可用。
 - 自定义窗口菜单的移动/缩放使用主进程光标循环。
 - 配置代码签名证书前安装包未签名（SmartScreen 警告；自动更新在签名版本发布后才有意义）。
 - 渲染层 CSP 允许 `unsafe-eval`（vendored Cordis Loader 需要求值配置表达式）；渲染层保持沙箱，主进程仍是能力边界。
+- 首次启动会展示一次「内测声明」弹层（点「继续」关闭）；这是有意的引导行为，不是缺陷。
 
 ---
 
@@ -119,7 +139,7 @@ Windows CI 工作流（`windows-desktop.yml`）全部针对**打包后的 exe** 
 
 完整工程计划见 [release-testing-plan.md](release-testing-plan.md)。简版：
 
-- **产品基本盘** — 窗口状态记忆、可见的更新入口、日志轮转、崩溃可见性
+- **产品基本盘** — 窗口状态记忆（可见更新入口、日志轮转、崩溃可见性已在 2026-08 批次交付）
 - **桌面体验** — 全局快捷键、系统通知、标题栏跟随主题、更丰富的托盘
 - **平台能力** — `dsh://` 深链、文件拖放、JumpList / 任务栏进度、MCP 管理界面
 - **发布链路** — 代码签名、GitHub Releases 自动化、stable/beta 渠道、差分更新

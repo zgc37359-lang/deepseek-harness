@@ -147,6 +147,29 @@ describe('translate: tool calls', () => {
     ])
   })
 
+  it('keeps the first tool-call name when continuation deltas carry an empty name', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_00_x', type: 'function', function: { name: 'fs_search', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { name: '', arguments: '{"pattern":' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { name: '', arguments: '"x"}' } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+
+    const deltas = chunks.filter(chunk => chunk.type === 'tool-call-delta')
+    for (const delta of deltas) {
+      if (delta.type === 'tool-call-delta') {
+        expect(delta.name).toBe('fs_search')
+      }
+    }
+    expect(chunks.at(-2)).toEqual({
+      type: 'block-end',
+      index: 0,
+      block: { type: 'tool-call', id: 'call_00_x', name: 'fs_search', arguments: '{"pattern":"x"}' },
+    })
+  })
+
   it('interleaves text and tool-call blocks with distinct indices', async () => {
     const chunks = await collect(translate(feed(
       firstChunk,
@@ -346,5 +369,131 @@ describe('translate: defensive tool-call branches', () => {
       DONE,
     )))
     expect(chunks[1]).toEqual({ type: 'tool-call-delta', index: 0, id: 'c', argumentsDelta: '' })
+  })
+})
+describe('translate: thinking-tag defense in content', () => {
+  it('routes a leading <thinking> segment to the reasoning block and keeps the answer as text', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: '<thinking>I see the iss' } }] },
+      { choices: [{ delta: { content: 'ue.</thinking>Answer' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    expect(chunks).toEqual([
+      { type: 'block-start', index: 0, blockType: 'reasoning' },
+      { type: 'reasoning-delta', index: 0, text: 'I see the iss' },
+      { type: 'reasoning-delta', index: 0, text: 'ue.' },
+      { type: 'block-start', index: 1, blockType: 'text' },
+      { type: 'text-delta', index: 1, text: 'Answer' },
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'I see the issue.' } },
+      { type: 'block-end', index: 1, block: { type: 'text', text: 'Answer' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  })
+
+  it('keeps an unclosed leading <thinking> segment entirely in the reasoning block', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: '<thinking>only thinking' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    expect(chunks).toEqual([
+      { type: 'block-start', index: 0, blockType: 'reasoning' },
+      { type: 'reasoning-delta', index: 0, text: 'only thinking' },
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'only thinking' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  })
+
+  it('handles tags split across content fragments', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: '<thi' } }] },
+      { choices: [{ delta: { content: 'nking>think</thi' } }] },
+      { choices: [{ delta: { content: 'nking>done' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    expect(chunks).toEqual([
+      { type: 'block-start', index: 0, blockType: 'reasoning' },
+      { type: 'reasoning-delta', index: 0, text: 'think' },
+      { type: 'block-start', index: 1, blockType: 'text' },
+      { type: 'text-delta', index: 1, text: 'done' },
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'think' } },
+      { type: 'block-end', index: 1, block: { type: 'text', text: 'done' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  })
+
+  it('dedupes a content echo when reasoning_content already carried the same text', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: null, reasoning_content: 'same' } }] },
+      { choices: [{ delta: { content: '<thinking>same</thinking>answer' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    expect(chunks).toEqual([
+      { type: 'block-start', index: 0, blockType: 'reasoning' },
+      { type: 'reasoning-delta', index: 0, text: 'same' },
+      { type: 'block-start', index: 1, blockType: 'text' },
+      { type: 'text-delta', index: 1, text: 'answer' },
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'same' } },
+      { type: 'block-end', index: 1, block: { type: 'text', text: 'answer' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  })
+
+  it('leaves a mid-text <thinking> literal as ordinary text', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: 'look at <thinking> this' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    expect(chunks).toEqual([
+      { type: 'block-start', index: 0, blockType: 'text' },
+      { type: 'text-delta', index: 0, text: 'look at <thinking> this' },
+      { type: 'block-end', index: 0, block: { type: 'text', text: 'look at <thinking> this' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  })
+
+  it('matches the tags case-insensitively', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: '<THINKING>x</THINKING>y' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    expect(chunks).toEqual([
+      { type: 'block-start', index: 0, blockType: 'reasoning' },
+      { type: 'reasoning-delta', index: 0, text: 'x' },
+      { type: 'block-start', index: 1, blockType: 'text' },
+      { type: 'text-delta', index: 1, text: 'y' },
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'x' } },
+      { type: 'block-end', index: 1, block: { type: 'text', text: 'y' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
+  })
+
+  it('ignores leading whitespace before the open tag', async () => {
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: '\n<thinking>t</thinking>a' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    expect(chunks).toEqual([
+      { type: 'block-start', index: 0, blockType: 'reasoning' },
+      { type: 'reasoning-delta', index: 0, text: 't' },
+      { type: 'block-start', index: 1, blockType: 'text' },
+      { type: 'text-delta', index: 1, text: 'a' },
+      { type: 'block-end', index: 0, block: { type: 'reasoning', text: 't' } },
+      { type: 'block-end', index: 1, block: { type: 'text', text: 'a' } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ])
   })
 })

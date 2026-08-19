@@ -6,9 +6,9 @@
  * @module @deepseek-ai/dsh-desktop/main
  */
 
-import { appendFileSync, mkdirSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { rm, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { inspect } from 'node:util'
 import {
@@ -50,6 +50,9 @@ import { runStreamBenchmark } from './bench-stream.ts'
 import { runPerfProbe } from './perf-test.ts'
 import { MemorySampler } from './memory.ts'
 import { writeBase64Stream } from './download.ts'
+import { appendLogLine, DEFAULT_LOG_KEEP, DEFAULT_LOG_MAX_BYTES } from './main-log.ts'
+import { MAX_RELOAD_AFTER_CRASH, shouldRecoverReload } from './crash-policy.ts'
+import { matchBundleRequest } from './bundle-request.ts'
 // electron-updater declares `autoUpdater` as a getter on its CJS exports, which
 // Node's ESM named-export interop cannot statically detect; the default import
 // (module.exports) always carries it.
@@ -134,11 +137,20 @@ crashReporter.start({ uploadToServer: false, compress: true })
 
 const userDataDir = app.getPath('userData')
 const logFile = join(userDataDir, 'logs', 'main.log')
-mkdirSync(dirname(logFile), { recursive: true })
 
-/** Append one timestamped line to the desktop main-process log. */
+/** Parse a positive integer environment override, falling back when unset. */
+function positiveEnv(name: string, fallback: number): number {
+  const parsed = Number(process.env[name])
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+/** Rotation budget from the environment; defaults keep main.log bounded. */
+const logMaxBytes = positiveEnv('DSH_DESKTOP_LOG_MAX_BYTES', DEFAULT_LOG_MAX_BYTES)
+const logKeep = positiveEnv('DSH_DESKTOP_LOG_KEEP', DEFAULT_LOG_KEEP)
+
+/** Append one timestamped line to the main-process log (rotating at the budget). */
 function log(level: 'info' | 'warn' | 'error', message: string): void {
-  appendFileSync(logFile, `[${new Date().toISOString()}] ${level} ${message}\n`)
+  appendLogLine(logFile, level, message, { maxBytes: logMaxBytes, keep: logKeep })
 }
 
 const memorySampler = new MemorySampler(MEMORY_SAMPLE_INTERVAL_MS, (sample) => {
@@ -151,7 +163,12 @@ const memorySampler = new MemorySampler(MEMORY_SAMPLE_INTERVAL_MS, (sample) => {
 // main-process exception that Electron shows as a JavaScript error dialog.
 // Route warnings into the main-process log instead, and contain the EPIPE
 // case specifically.
+// Known dependency warning (Electron runtime, not our code): log once per
+// message instead of every boot so main.log stays readable.
+const seenWarnings = new Set<string>()
 process.on('warning', (warning) => {
+  if (seenWarnings.has(warning.message)) return
+  seenWarnings.add(warning.message)
   log('warn', warning.message)
 })
 process.on('uncaughtException', (error) => {
@@ -217,7 +234,11 @@ function createMainWindow(): void {
     memorySampler.take()
     if (isQuitting || SMOKE_TEST) return
     rendererCrashes += 1
-    if (rendererCrashes <= 2) win.webContents.reload()
+    // Budget: two auto-reloads, plus one reload that brings a live renderer
+    // back to surface the crash overlay (a dead renderer shows nothing).
+    if (shouldRecoverReload(rendererCrashes)) {
+      win.webContents.reload()
+    }
   })
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
@@ -373,6 +394,14 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.windowIsMaximized, () => mainWindow?.isMaximized() ?? false)
 
+  ipcMain.handle(IPC.shellCrashState, () => {
+    return { crashed: rendererCrashes > MAX_RELOAD_AFTER_CRASH }
+  })
+
+  ipcMain.handle(IPC.shellResetCrash, () => {
+    rendererCrashes = 0
+  })
+
   ipcMain.handle(IPC.windowMenuAction, (_event, rawAction: unknown) => {
     if (!isWindowMenuAction(rawAction)) return
     const action = rawAction
@@ -488,11 +517,8 @@ function bootstrap(): void {
   createMainWindow()
   createTray()
   protocol.handle('dsh-bundle', async (request) => {
-    const url = new URL(request.url)
-    const match = decodeURIComponent(url.pathname).match(/^\/plugins\/(.+)\/client\.js$/)
-    if (match === null) return new Response('not found', { status: 404 })
-    const id = match[1]
-    if (id === undefined) return new Response('not found', { status: 404 })
+    const id = matchBundleRequest(new URL(request.url))
+    if (id === null) return new Response('not found', { status: 404 })
     try {
       return new Response(new Uint8Array(await runtimeBundle(id)), {
         headers: { 'content-type': 'application/javascript' },

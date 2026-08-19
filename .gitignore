@@ -31,6 +31,12 @@ python/sdk-runtime/src/deepseek_harness_runtime/runtime/node/
 python/**/__pycache__/
 python/**/.pytest_cache/
 apps/web/dist/
+apps/desktop/dist/
+apps/desktop/dist-app/
+apps/desktop/dist-app-staging/
+apps/desktop/dist-app-staging*/
+apps/desktop/dist-app-flat/
+apps/desktop/dist-app2/
 .artifacts/
 .playwright-mcp/
 .orig
@@ -38,3 +44,9 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+
+# Stray tsc emits that once landed in packages/*/*/src (build misconfig
+# residue). Sources are ESM TS; anything .js/.d.ts/.map here is accidental.
+packages/client/connection/src/*.js
+packages/client/connection/src/*.d.ts
+packages/client/connection/src/*.js.map

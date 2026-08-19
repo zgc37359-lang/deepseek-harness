@@ -18,7 +18,9 @@ afterEach(() => {
 })
 
 describe('writeBase64Stream', () => {
-  it('writes a multi-megabyte payload byte-for-byte and reports the decoded size', async () => {
+  // A 2 MiB streamed write can exceed the default 5 s budget on a loaded
+  // Windows box (remote-desktop sessions steal CPU); the I/O itself is cheap.
+  it('writes a multi-megabyte payload byte-for-byte and reports the decoded size', { timeout: 20_000 }, async () => {
     const dir = tempDir()
     const path = join(dir, 'payload.bin')
     const payload = randomBytes(2 * 1024 * 1024 + 123)
