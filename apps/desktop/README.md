@@ -59,6 +59,28 @@ The NSIS installer and `latest.yml` update manifest land in `apps/desktop/dist-a
 
 ---
 
+## Release process
+
+Every release follows the same steps so the update chain and the landing page never drift:
+
+1. **Bump the version** in `package.json` (`0.1.0` for stable, `0.1.0-rc.N` for prerelease) and commit.
+2. **Build and package**: `pnpm --filter @deepseek-ai/dsh-desktop run dist:flat` — artifacts land in `apps/desktop/dist-app2/`.
+3. **Publish the GitHub release** with `gh` and upload the three artifacts (exe, blockmap, `latest.yml`). Use `--prerelease` for rc versions; **stable releases must NOT be prerelease** — GitHub's `releases/latest` only resolves to non-prerelease tags, and the landing-page download button depends on it:
+   ```sh
+   gh release create v0.1.0 --repo zgc37359-lang/harness-desktop --title "Harness Desktop 0.1.0" --notes-file body.md
+   gh release upload v0.1.0 --repo zgc37359-lang/harness-desktop dist-app2/dsh-desktop-0.1.0-x64.exe dist-app2/dsh-desktop-0.1.0-x64.exe.blockmap dist-app2/latest.yml --clobber
+   ```
+4. **Update the landing page** (`apps/desktop/site/index.html`): the download button points at `releases/latest/download/dsh-desktop-<version>-x64.exe` — the filename follows the version, so update it, commit, and redeploy:
+   ```sh
+   cd apps/desktop/site
+   wrangler pages deploy . --project-name harness-desktop --branch main --commit-dirty=true
+   ```
+5. **Push** the branch; the pre-push hook runs the typecheck.
+
+The live site is https://harness-desktop.pages.dev.
+
+---
+
 ## License
 
 [MIT](../../LICENSE)
