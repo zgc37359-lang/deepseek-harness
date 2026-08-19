@@ -20,9 +20,20 @@ import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import SubprocessRuntime from '@deepseek-ai/dsh-subprocess'
 import type { SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import type { ShellProcess } from '@deepseek-ai/dsh-shell'
+import type { ShellExecSpec, ShellProcess } from '@deepseek-ai/dsh-shell'
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-pwsh-exec-spec-'))
+
+/** Exposes the protected runArgv seam so a wrapping-runner env is testable directly. */
+class EnvExposedPwshExecutor extends PwshLocalExecutor {
+  public runArgvWithEnv(
+    spec: ShellExecSpec,
+    argv: readonly string[],
+    env?: Readonly<Record<string, string>>,
+  ): ReturnType<PwshLocalExecutor['run']> {
+    return this.runArgv(spec, argv, env)
+  }
+}
 
 // The probe follows the executor's own resolution (Program Files installs on
 // Windows are found even when bare `pwsh` is not on PATH).
@@ -190,6 +201,20 @@ describe('spawn construction (pure, every platform)', () => {
 })
 
 describe.skipIf(!hasPwsh)('PwshLocalExecutor.run', () => {
+  it('merges a wrapping runner env over the caller env', { timeout: 15_000 }, async () => {
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
+    await ctx.plugin(EnvExposedPwshExecutor, { graceMs: 200 })
+    const pwsh = ctx.shell as EnvExposedPwshExecutor
+    const result = await pwsh.runArgvWithEnv(
+      pwsh.resolve({ command: 'Write-Output never' }),
+      ['node', '-e', 'process.stdout.write(process.env.DSH_RUNNER ?? "missing")'],
+      { DSH_RUNNER: 'runner-ok' },
+    )
+    expect(result.stdout.text).toBe('runner-ok')
+  })
+
   it('resolves with output and the effective timeout', { timeout: 15_000 }, async () => {
     const { bash } = await setup({ timeoutMs: 10_000 })
     const result = await bash.run(bash.resolve({ command: 'Write-Output hi' }))

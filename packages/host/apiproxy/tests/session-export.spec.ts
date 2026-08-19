@@ -141,6 +141,43 @@ describe('session export compression config', () => {
   })
 })
 
+describe('session.exportZip RPC lane', () => {
+  const rpcRequest = (payload: unknown) =>
+    new Request('http://host/api/session.exportZip', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client-request',
+        rpcId: 'rpc-export',
+        method: 'session.exportZip',
+        payload,
+      }),
+    })
+
+  it('returns the archive bytes as base64 with the conventional filename', async () => {
+    const api = await buildApi({ [sid('session-root')]: artifact('session-root') })
+    const response = await toFetchHandler(api).fetch(rpcRequest({ sessionId: sid('session-root') }))
+    expect(response.status).toBe(200)
+    const json = (await response.json()) as {
+      result: { ok: boolean; value?: { filename: string; bytesBase64: string } }
+    }
+    expect(json.result.ok).toBe(true)
+    expect(json.result.value?.filename).toBe('dsh-session-session-root.zip')
+    const bytes = new Uint8Array(Buffer.from(json.result.value?.bytesBase64 ?? '', 'base64'))
+    expect(bytes.length).toBeGreaterThan(0)
+    const zip = unzipSync(bytes)
+    expect(strFromU8(zip['session.jsonl'] as Uint8Array)).toContain('session-root')
+  })
+
+  it('answers a business error when export services are missing', async () => {
+    const api = await buildApi({}, [], { query: false, persistence: false, attachments: false })
+    const response = await toFetchHandler(api).fetch(rpcRequest({ sessionId: sid('session-root') }))
+    const json = (await response.json()) as { result: { ok: boolean; error: { message: string } } }
+    expect(json.result.ok).toBe(false)
+    expect(json.result.error.message).toContain('unavailable')
+  })
+})
+
 describe('cold blank probe config', () => {
   it('accepts a per-Session byte bound including zero and rejects invalid bounds', () => {
     expect(ApiProxyService.Config({ coldBlankProbeMaxBytes: 0 }))

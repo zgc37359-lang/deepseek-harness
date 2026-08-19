@@ -28,13 +28,21 @@ export function SessionLogDownloadDialog({
 
   const status = entry?.status
   const open = entry?.open === true
+  const savedPath = status === 'success' ? entry?.path : undefined
   const error = status === 'error' ? entry?.error || t('dialog.commandFailed') : null
   const title = status === 'downloading'
     ? t('dialog.preparingTitle')
     : status === 'success' ? t('dialog.successTitle') : t('dialog.errorTitle')
   const description = status === 'downloading'
     ? t('dialog.preparingDescription')
-    : status === 'success' ? t('dialog.successDescription') : error ?? t('dialog.commandFailed')
+    : status === 'success'
+      ? savedPath === undefined ? t('dialog.successDescription') : `${t('dialog.savedAt')} ${savedPath}`
+      : error ?? t('dialog.commandFailed')
+  const reveal = async (): Promise<void> => {
+    if (savedPath === undefined) return
+    const bridge = (globalThis as { desktop?: { download?: { reveal?(path: string): Promise<boolean> } } }).desktop
+    await bridge?.download?.reveal?.(savedPath)
+  }
 
   return (
     <Modal
@@ -43,7 +51,14 @@ export function SessionLogDownloadDialog({
       title={title}
       description={description}
       closeLabel={t('dialog.close')}
-      footer={<Button variant="primary" onClick={() => { dismiss(sessionId) }}>{t('dialog.close')}</Button>}
+      footer={(
+        <>
+          {savedPath !== undefined && (
+            <Button variant="outline" onClick={() => { void reveal() }}>{t('dialog.reveal')}</Button>
+          )}
+          <Button variant="primary" onClick={() => { dismiss(sessionId) }}>{t('dialog.close')}</Button>
+        </>
+      )}
     />
   )
 }

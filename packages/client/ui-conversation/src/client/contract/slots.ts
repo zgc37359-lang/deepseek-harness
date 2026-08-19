@@ -636,10 +636,15 @@ export class PendingApproval {
    * wait and drops it from the pending list.
    * @param outcome - the only two client-answerable outcomes.
    */
-  async answer(outcome: 'allowed-once' | 'rejected'): Promise<void> {
+  async answer(outcome: 'allowed-once' | 'rejected', remember = false): Promise<void> {
     const receipt = await this.wait.respond({
       ok: true,
-      value: { sessionId: this.wait.sessionId, approvalId: this.wait.payload.approvalId, outcome },
+      value: {
+        sessionId: this.wait.sessionId,
+        approvalId: this.wait.payload.approvalId,
+        outcome,
+        ...(remember ? { remember: true } : {}),
+      },
     })
     if (!receipt.accepted) {
       throw new Error(`approval response rejected: ${receipt.reason}`)

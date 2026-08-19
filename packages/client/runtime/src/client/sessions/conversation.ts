@@ -461,6 +461,8 @@ export interface ConversationSnapshot {
   openError: RpcError | null
   hasMore: boolean
   loadingOlder: boolean
+  /** Pages skipped by the last successful loadOlder (giant chunk-stream continuation); null until one runs. */
+  loadOlderSkippedPages?: number | null
   promptError: PromptError | null
   /**
    * Whether this session still has an empty log (no user message yet).

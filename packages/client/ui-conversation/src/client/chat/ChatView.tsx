@@ -158,6 +158,7 @@ export function ChatView({
   const openError = useSession(s => s.openError)
   const hasMore = useSession(s => s.hasMore)
   const loadingOlder = useSession(s => s.loadingOlder)
+  const loadOlderSkippedPages = useSession(s => s.loadOlderSkippedPages)
   const selectedCallId = useStore(s => s.selection?.callId)
 
   const pendingSteering = useMemo(
@@ -377,6 +378,11 @@ export function ChatView({
               <button type="button" disabled={loadingOlder} onClick={loadOlderAnchored}>
                 {loadingOlder ? t('loading') : t('chat.loadOlder')}
               </button>
+              {loadOlderSkippedPages != null && loadOlderSkippedPages > 0 && (
+                <span className={css.olderSkipped}>
+                  {t('chat.loadOlderSkipped', { n: loadOlderSkippedPages })}
+                </span>
+              )}
             </div>
           )}
           {order.map(nodeKey => (

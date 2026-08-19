@@ -87,6 +87,9 @@
       "path": "../../interaction/user-questions"
     },
     {
+      "path": "../../interaction/grants"
+    },
+    {
       "path": "../../workspace/workspace"
     },
     {

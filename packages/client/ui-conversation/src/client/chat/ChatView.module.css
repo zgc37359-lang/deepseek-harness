@@ -146,6 +146,13 @@
   opacity: 0.6;
 }
 
+.olderSkipped {
+  margin-left: 10px;
+  align-self: center;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 /* Back-to-bottom: zero-height sticky slot so the control does not extend
    scrollHeight; the button translates up into the viewport. Under the
    conversation host, clearance sits above the sticky composer stack. */

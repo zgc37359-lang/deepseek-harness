@@ -67,20 +67,61 @@ function assertTextOnly(blocks: readonly ContentBlock[]): void {
   }
 }
 
-/** Serialize one assistant message (text + reasoning + tool calls). */
-function serializeAssistant(message: Message): WireMessage {
-  const text = flattenText(message.content)
+/**
+ * Strip a leading <thinking>…</thinking> segment the model leaked into the
+ * text channel. Only a segment that starts the text (after whitespace) is
+ * removed; mid-text literals stay untouched. An unclosed segment removes
+ * everything up to its end.
+ * @param text - the assistant text block content.
+ * @returns the text without the leading leaked thinking segment.
+ */
+export function stripLeadingThinking(text: string): string {
+  const open = text.match(/^\s*<thinking>/i)
+  if (open === null) return text
+  const afterOpen = text.slice(open[0].length)
+  const close = afterOpen.search(/<\/thinking>/i)
+  return close === -1 ? '' : afterOpen.slice(close + '</thinking>'.length)
+}
+
+/** Collect tool-call ids whose name is empty: unexecutable calls that must not reach the wire. */
+function emptyNameToolCallIds(messages: readonly Message[]): ReadonlySet<string> {
+  const ids = new Set<string>()
+  for (const message of messages) {
+    for (const block of message.content) {
+      if (isToolCall(block) && block.name.trim() === '') ids.add(block.id)
+    }
+  }
+  return ids
+}
+
+/** Narrow a content block to the tool-call variant (filter callbacks do not narrow). */
+function isToolCall(block: ContentBlock): block is Extract<ContentBlock, { type: 'tool-call' }> {
+  return block.type === 'tool-call'
+}
+
+/** Serialize one assistant message (text + reasoning + named tool calls). */
+function serializeAssistant(message: Message, skippedIds: ReadonlySet<string>): WireMessage | undefined {
+  // Replay-time leak defense: history recorded before the translate fix can
+  // carry the model's CoT inside text blocks; strip it so the next request
+  // never sees (and imitates) the leaked thinking.
+  const text = stripLeadingThinking(flattenText(message.content))
+  const hadEmptyNameCall = message.content.some(block => isToolCall(block) && skippedIds.has(block.id))
   const reasoning = message.content
     .filter(block => block.type === 'reasoning')
     .map(block => block.text)
     .join('')
   const toolCalls = message.content
-    .filter(block => block.type === 'tool-call')
+    .filter(isToolCall)
+    .filter(block => !skippedIds.has(block.id))
     .map(block => ({
       id: block.id,
       type: 'function' as const,
       function: { name: block.name, arguments: block.arguments },
     }))
+  // A turn that only produced an empty-name tool call has nothing usable on
+  // the wire: skip it (and its orphaned results, matched by id below) rather
+  // than replay a call the gateway will reject.
+  if (hadEmptyNameCall && text === '' && toolCalls.length === 0) return undefined
 
   return {
     role: 'assistant',
@@ -110,6 +151,7 @@ function serializeAssistant(message: Message): WireMessage {
  * @returns the wire messages; order preserved, each tool result expanded into its own entry.
  */
 export function serializeMessages(messages: Message[]): WireMessage[] {
+  const skippedIds = emptyNameToolCallIds(messages)
   const wire: WireMessage[] = []
   for (const message of messages) {
     assertTextOnly(message.content)
@@ -118,14 +160,16 @@ export function serializeMessages(messages: Message[]): WireMessage[] {
       continue
     }
     if (message.role === 'assistant') {
-      wire.push(serializeAssistant(message))
+      const serialized = serializeAssistant(message, skippedIds)
+      if (serialized !== undefined) wire.push(serialized)
       continue
     }
     // user role: tool results ride in user messages in the harness
     // vocabulary, but DeepSeek wants them as role:'tool' messages.
-    const toolResults = message.content.filter(block => block.type === 'tool-result')
+    const rawToolResults = message.content.filter(block => block.type === 'tool-result')
+    const toolResults = rawToolResults.filter(block => !skippedIds.has(block.toolCallId))
     const text = flattenText(message.content)
-    if (text.length > 0 || toolResults.length === 0) {
+    if (text.length > 0 || rawToolResults.length === 0) {
       wire.push({ role: 'user', content: text })
     }
     for (const result of toolResults) {

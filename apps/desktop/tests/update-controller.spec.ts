@@ -71,4 +71,50 @@ describe('createUpdateController', () => {
     ])
     expect(controller.status()).toEqual({ kind: 'error', message: 'string error' })
   })
+
+  it('treats an empty feed (no published versions) as not-available, not an error', () => {
+    const updater = new FakeUpdater()
+    const emitted: UpdateStatus[] = []
+    const controller = createUpdateController(updater, status => emitted.push(status))
+
+    updater.emit('error', new Error('No published versions on GitHub'))
+
+    expect(emitted).toEqual([{ kind: 'not-available' }])
+    expect(controller.status()).toEqual({ kind: 'not-available' })
+  })
+
+  it('matches the empty-feed error case-insensitively and as a string', () => {
+    const updater = new FakeUpdater()
+    const emitted: UpdateStatus[] = []
+    const controller = createUpdateController(updater, status => emitted.push(status))
+
+    updater.emit('error', 'no PUBLISHED VERSIONS on github')
+
+    expect(emitted).toEqual([{ kind: 'not-available' }])
+    expect(controller.status()).toEqual({ kind: 'not-available' })
+  })
+
+  it('maps the empty-feed rejection of check() to not-available', async () => {
+    const updater = new FakeUpdater()
+    updater.checkForUpdates = () => Promise.reject(new Error('No published versions on GitHub'))
+    const emitted: UpdateStatus[] = []
+    createUpdateController(updater, status => emitted.push(status))
+
+    // Re-run the check with the rejection; the catch path maps it.
+    updater.checkForUpdates = () => Promise.reject(new Error('No published versions on GitHub'))
+    updater.emit('error', new Error('No published versions on GitHub'))
+    await vi.waitFor(() => {
+      expect(emitted).toEqual([{ kind: 'not-available' }])
+    })
+  })
+
+  it('keeps genuine transport failures as errors', () => {
+    const updater = new FakeUpdater()
+    const emitted: UpdateStatus[] = []
+    createUpdateController(updater, status => emitted.push(status))
+
+    updater.emit('error', new Error('connect ECONNREFUSED 1.2.3.4:443'))
+
+    expect(emitted).toEqual([{ kind: 'error', message: 'connect ECONNREFUSED 1.2.3.4:443' }])
+  })
 })

@@ -15,10 +15,11 @@ import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { contentHasImage, createUserMessage, freezeMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageSource } from '@deepseek-ai/dsh-llm'
-import { isAppendSurfaceEvent, isJsonValue } from '@deepseek-ai/dsh-session'
+import { isJsonValue } from '@deepseek-ai/dsh-session'
 import type { JsonValue, Session, SessionEvent, SessionEventMap, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-session-query'
+import { MESSAGE_TYPES, paginate } from './history-pagination.ts'
 import { SubagentError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentListEntry as CatalogSubagentListEntry } from '@deepseek-ai/dsh-subagent'
 import { isUserInvocable } from '@deepseek-ai/dsh-skill'
@@ -88,6 +89,9 @@ import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-a
 // Side-effect type import: resolves the `approval/request` waterfall and
 // `ctx.get('approval')` without a value dependency on the seam (optional composition).
 import type {} from '@deepseek-ai/dsh-user-approval'
+// Type-only: resolves `ctx.get('grants')` for the optional durable-grant
+// short-circuit without a value dependency on the seam.
+import type {} from '@deepseek-ai/dsh-grants'
 import { approvalResponsePayloadSchema } from './api/approvals.schema.ts'
 import { imageLimitsProjectionSchema, sessionListMetadataProjectionSchema } from './api/sessions.schema.ts'
 import { questionResponsePayloadSchema } from './api/questions.schema.ts'
@@ -119,9 +123,6 @@ const SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100
 const COLD_SUMMARY_BATCH_SIZE = 16
 /** Default maximum artifact size eligible for one cold blankness read. */
 export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
-
-/** Conversation message event types (the pagination counting unit). */
-const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 
 /** Decode the browser payload while rejecting non-canonical base64 forms. */
 function decodeBase64(data: string): Uint8Array {
@@ -245,6 +246,8 @@ function isAborted(signal: AbortSignal): boolean {
 
 /**
  * Message-boundary pagination: count maxMessages append-origin messages
+ * (implementation moved to history-pagination.ts; pages are also capped by
+ * event count and serialized bytes, so a giant message group may be cut).
  * backwards from the window tail. Replacement copies never entered the
  * conversation a reader sees — they restate a shadowed range for the model
  * alone — so they consume no quota; the page stays one contiguous raw range,
@@ -253,34 +256,6 @@ function isAborted(signal: AbortSignal): boolean {
  * group via sourceEventSeqs — never cut mid-message). The tail page naturally
  * includes the in-progress partial.
  */
-function paginate(
-  events: readonly SessionEvent[],
-  beforeSeq: number | undefined,
-  maxMessages: number,
-): { events: SessionEvent[]; hasMore: boolean } {
-  const window = beforeSeq === undefined ? [...events] : events.filter(event => event.seq < beforeSeq)
-  let count = 0
-  let cut = 0
-  for (let i = window.length - 1; i >= 0; i--) {
-    const event = window[i] as SessionEvent
-    if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
-    count++
-    const sources = (event as { sourceEventSeqs?: number[] }).sourceEventSeqs
-    let groupStart = event.seq
-    if (sources !== undefined) {
-      for (const source of sources) {
-        if (source < groupStart) groupStart = source
-      }
-    }
-    if (count >= maxMessages) {
-      cut = groupStart
-      break
-    }
-  }
-  const page = window.filter(event => event.seq >= cut)
-  return { events: page, hasMore: cut > 0 }
-}
-
 /** Wrap an ok result echoing the request's rpcId. */
 function ok<T>(request: RpcRequest<unknown>, value: T): RpcResponse<T> {
   return { rpcId: request.rpcId, result: { ok: true, value } }
@@ -650,6 +625,7 @@ interface PendingApproval {
   sessionId: SessionId
   approvalId: ApprovalRequestId
   toolName: string
+  cwd?: string
   callId?: CallId
   reason?: string
   resolve(outcome: ApprovalOutcome): void
@@ -1388,12 +1364,20 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     ctx.effect(() => () => {
       for (const pending of [...pendingApprovals.values()]) pending.resolve('cancelled')
     }, 'api-proxy: approval registry teardown')
-    ctx.on('approval/request', (req, next) => {
+    ctx.on('approval/request', async (req, next) => {
       // Dispatch rides a microtask behind the service's own signal check: an
       // abort landing in that window would register the abort listener AFTER
       // the signal fired — never invoked, entry pending forever, zombie frame
       // on every mux replay. Settle synchronously instead of publishing.
-      if (req.signal?.aborted === true) return Promise.resolve<ApprovalOutcome>('cancelled')
+      if (req.signal?.aborted === true) return 'cancelled'
+      // Durable grant short-circuit: a remembered grant for this workspace/tool
+      // pair answers before the user is asked. Missing grants delegate below.
+      const grants = ctx.get('grants')
+      const cwd = req.agent.session.header.cwd
+      if (grants !== undefined && cwd !== undefined) {
+        const granted = grants.check(cwd, req.toolName)
+        if (granted) return 'allowed-once'
+      }
       // The audit pair `approval/asked` is already appended by the service
       // before dispatch, but dispatch rides a microtask: parallel tool calls
       // can append several asked events before any answerer runs. THIS
@@ -1445,6 +1429,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           sessionId: req.agent.session.id,
           approvalId: id,
           toolName: req.toolName,
+          ...cwd === undefined ? {} : { cwd },
           ...req.callId === undefined ? {} : { callId: req.callId },
           ...req.reason === undefined ? {} : { reason: req.reason },
           resolve: settle,
@@ -2295,6 +2280,64 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           return err(request, {
             code: 'internal',
             message: `failed to rename session "${sessionId}": ${String(error)}`,
+            details: {},
+          })
+        }
+      },
+
+      async exportZip(request, signal) {
+        const { sessionId, includeDescendants } = request.payload
+        const deps = sessionLogExportDeps(ctx)
+        if (deps.sessionQuery === undefined || deps.sessionPersistence === undefined || deps.attachments === undefined) {
+          return err(request, {
+            code: 'internal',
+            message: 'session log export is unavailable: missing session-query, session-persistence, or attachments service',
+            details: {},
+          })
+        }
+        if (!deps.sessionPersistence.supportsRawArtifacts) {
+          return err(request, {
+            code: 'internal',
+            message: 'session log export is unavailable: the persistence backend does not expose per-session raw artifacts',
+            details: {},
+          })
+        }
+        try {
+          await flushLiveSessionLog(deps, sessionId, signal)
+          const root = await deps.sessionPersistence.readRaw(sessionId, signal)
+          if (root === undefined) {
+            return err(request, { code: 'session-not-found', message: `session "${sessionId}" not found`, details: { sessionId } })
+          }
+          const ready: SessionLogExportReady = {
+            sessionQuery: deps.sessionQuery,
+            sessionPersistence: deps.sessionPersistence,
+            attachments: deps.attachments,
+            sessions: deps.sessions,
+          }
+          const stream = streamSessionLogZip(
+            ready,
+            root,
+            sessionId,
+            includeDescendants === true,
+            sessionExportCompressionLevel,
+            signal,
+          )
+          const chunks: Buffer[] = []
+          const reader = stream.getReader()
+          for (;;) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (value !== undefined) chunks.push(Buffer.from(value))
+          }
+          return ok(request, {
+            filename: sessionLogZipFilename(sessionId),
+            bytesBase64: Buffer.concat(chunks).toString('base64'),
+          })
+        } catch (error) {
+          if (signal.aborted) throw error
+          return err(request, {
+            code: 'internal',
+            message: `session log export failed: ${error instanceof Error ? error.message : String(error)}`,
             details: {},
           })
         }
@@ -3630,7 +3673,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
     },
 
-    respond(message: ClientResponse): Promise<RpcReceipt> {
+    async respond(message: ClientResponse): Promise<RpcReceipt> {
       // Route by the echoed rpcId (the wire correlation): approvals first,
       // then questions — the two registries share one id space of UUIDs.
       const approval = pendingApprovals.get(message.rpcId)
@@ -3641,6 +3684,20 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         // to — a mismatched answer is malformed, not merely late.
         if (!parsed.success || parsed.data.approvalId !== approval.approvalId || parsed.data.sessionId !== approval.sessionId) {
           return Promise.resolve({ accepted: false, reason: 'bad-response' })
+        }
+        if (parsed.data.remember === true && parsed.data.outcome === 'allowed-once' && approval.cwd !== undefined) {
+          const grants = ctx.get('grants')
+          if (grants !== undefined) {
+            try {
+              await grants.grant({
+                workspaceId: approval.cwd,
+                toolName: approval.toolName,
+                ...approval.reason === undefined ? {} : { reason: approval.reason },
+              })
+            } catch (error) {
+              ctx.logger.warn(`api-proxy: failed to persist remembered grant: ${String(error)}`)
+            }
+          }
         }
         approval.resolve(parsed.data.outcome)
         return Promise.resolve({ accepted: true })

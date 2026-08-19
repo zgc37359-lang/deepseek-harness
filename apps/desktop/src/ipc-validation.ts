@@ -42,11 +42,26 @@ export function isBase64Payload(value: unknown): value is string {
 }
 
 /**
+ * Windows device names reserved regardless of extension (CON, PRN, AUX, NUL,
+ * COM1-9, LPT1-9). The Win32 check applies to the base name before the first
+ * dot, case-insensitively; prefixing keeps the download usable instead of
+ * creating a file other programs cannot open.
+ */
+const WINDOWS_RESERVED_BASE_NAMES = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/
+
+/**
  * Sanitize a download filename for the filesystem: every character Windows
- * forbids in a file name becomes an underscore.
+ * forbids in a file name becomes an underscore; reserved device base names get
+ * an underscore prefix; trailing dots and spaces (silently stripped by Win32,
+ * which would make the saved path ambiguous) become underscores.
  */
 export function sanitizeDownloadFilename(filename: string): string {
-  return filename.replace(/[\\/:*?"<>|]/g, '_')
+  const sanitized = filename.replace(/[\\/:*?"<>|]/g, '_')
+  const base = sanitized.split('.')[0] ?? ''
+  const renamed = WINDOWS_RESERVED_BASE_NAMES.test(base.toLowerCase())
+    ? `_${sanitized}`
+    : sanitized
+  return renamed.replace(/[. ]+$/, '_')
 }
 
 /**

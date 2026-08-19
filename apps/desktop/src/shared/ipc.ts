@@ -28,6 +28,8 @@ export const IPC = {
   updatesStatus: 'updates:status',
   trayNewSession: 'tray:new-session',
   trayShow: 'tray:show',
+  shellCrashState: 'shell:crash-state',
+  shellResetCrash: 'shell:reset-crash',
 } as const
 
 /** Actions the custom title-bar menu can request from the main process. */
@@ -73,6 +75,10 @@ export interface DesktopApi {
   tray: {
     onNewSession(callback: () => void): () => void
     onShow(callback: () => void): () => void
+  }
+  shell: {
+    crashState(): Promise<{ crashed: boolean }>
+    resetCrash(): Promise<void>
   }
   runtime: {
     unary(method: string, body: string): Promise<{ status: number; body: string }>

@@ -8,6 +8,7 @@
 import { copyFile, mkdir, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AppInfo } from './shared/ipc.ts'
+import type { MemorySample } from './memory.ts'
 
 /**
  * Write one diagnostics bundle under `root`.
@@ -15,6 +16,7 @@ import type { AppInfo } from './shared/ipc.ts'
  * @param logFile - the main-process log path.
  * @param info - version and environment snapshot.
  * @param crashDumpsDir - the Crashpad dump directory; copied when non-empty.
+ * @param memorySamples - retained memory samples; written when non-empty.
  * @returns the created bundle directory.
  */
 export async function collectDiagnostics(
@@ -22,6 +24,7 @@ export async function collectDiagnostics(
   logFile: string,
   info: AppInfo,
   crashDumpsDir?: string,
+  memorySamples?: readonly MemorySample[],
 ): Promise<string> {
   const dir = join(root, `dsh-diagnostics-${Date.now()}`)
   await mkdir(dir, { recursive: true })
@@ -41,5 +44,8 @@ export async function collectDiagnostics(
     }
   }
   await writeFile(join(dir, 'versions.json'), `${JSON.stringify(info, null, 2)}\n`)
+  if (memorySamples !== undefined && memorySamples.length > 0) {
+    await writeFile(join(dir, 'memory.json'), `${JSON.stringify(memorySamples, null, 2)}\n`)
+  }
   return dir
 }

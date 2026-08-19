@@ -209,8 +209,19 @@ export class ClientModuleRegistry extends Service {
     if (ctx.baseUrl === undefined) {
       throw new Error('client-modules: ctx.baseUrl is unset — the node half needs the config-tree anchor to resolve plugin packages')
     }
-    const require = createRequire(ctx.baseUrl)
-    this.resolvePkgJson = spec => require.resolve(`${spec}/package.json`)
+    const requireFromConfig = createRequire(ctx.baseUrl)
+    // The config anchor is the profiles root in desktop boots; its healed
+    // node_modules cannot hold working links into a packaged app.asar, so a
+    // second anchor (this module's own package, which sits inside the flat
+    // packaged node_modules or a real install) resolves in-box client rows.
+    const requireFromSelf = createRequire(import.meta.url)
+    this.resolvePkgJson = (spec) => {
+      try {
+        return requireFromConfig.resolve(`${spec}/package.json`)
+      } catch {
+        return requireFromSelf.resolve(`${spec}/package.json`)
+      }
+    }
 
     // Subscribe before seeding so a fiber arriving mid-activation lands in the
     // same dirty set (Set idempotence makes the overlap harmless). An entry-less

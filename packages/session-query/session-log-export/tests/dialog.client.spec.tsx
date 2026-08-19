@@ -28,7 +28,10 @@ function bench(
   return { controller, dismiss, view }
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('SessionLogDownloadDialog', () => {
   it('shows a controller failure and closes it without reading Session history', async () => {
@@ -72,5 +75,21 @@ describe('SessionLogDownloadDialog', () => {
     if (close === undefined) throw new Error('Session export dialog has no footer action')
     fireEvent.click(close)
     await waitFor(() => { expect(b.dismiss).toHaveBeenCalledWith(SID) })
+  })
+
+  it('shows the saved path and reveals the file through the desktop bridge', async () => {
+    const reveal = vi.fn(async () => true)
+    vi.stubGlobal('desktop', { download: { reveal } })
+    const b = bench()
+    act(() => {
+      b.controller.store.set({
+        bySession: { [SID]: { open: true, status: 'success', error: null, path: 'C:/Downloads/dsh-session-x.zip' } },
+      })
+    })
+    const dialog = await b.view.findByRole('dialog', { name: 'Session download started' })
+    expect(dialog.textContent).toContain('Saved to: C:/Downloads/dsh-session-x.zip')
+    const revealBtn = b.view.getByRole('button', { name: 'Show in folder' })
+    fireEvent.click(revealBtn)
+    await waitFor(() => { expect(reveal).toHaveBeenCalledWith('C:/Downloads/dsh-session-x.zip') })
   })
 })

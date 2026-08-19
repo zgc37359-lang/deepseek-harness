@@ -18,4 +18,6 @@ export interface ApprovalResponsePayload {
   sessionId: SessionId
   approvalId: ApprovalRequestId
   outcome: 'allowed-once' | 'rejected'
+  /** Persist a durable per-workspace grant for this tool alongside the one-shot allow. */
+  remember?: boolean
 }

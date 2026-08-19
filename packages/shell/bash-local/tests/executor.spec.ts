@@ -6,9 +6,20 @@ import { Context } from '@deepseek-ai/cordis'
 import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import type { ShellProcess } from '@deepseek-ai/dsh-shell'
+import type { ShellExecSpec, ShellProcess } from '@deepseek-ai/dsh-shell'
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-bash-exec-spec-'))
+
+/** Exposes the protected runArgv seam so a wrapping-runner env is testable directly. */
+class EnvExposedBashExecutor extends LocalBashExecutor {
+  public runArgvWithEnv(
+    spec: ShellExecSpec,
+    argv: readonly string[],
+    env?: Readonly<Record<string, string>>,
+  ): ReturnType<LocalBashExecutor['run']> {
+    return this.runArgv(spec, argv, env)
+  }
+}
 
 async function setup(config: ConstructorParameters<typeof LocalBashExecutor>[1] = {}) {
   const ctx = new Context()
@@ -37,6 +48,20 @@ async function readUntil(proc: ShellProcess, expected: string, timeoutMs = 5_000
 }
 
 describe('LocalBashExecutor.run', () => {
+  it('merges a wrapping runner env over the caller env', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LocalSubprocessRuntime)
+    ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
+    await ctx.plugin(EnvExposedBashExecutor, { graceMs: 200 })
+    const bash = ctx.shell as EnvExposedBashExecutor
+    const result = await bash.runArgvWithEnv(
+      bash.resolve({ command: 'true' }),
+      ['node', '-e', 'process.stdout.write(process.env.DSH_RUNNER ?? "missing")'],
+      { DSH_RUNNER: 'runner-ok' },
+    )
+    expect(result.stdout.text).toBe('runner-ok')
+  })
+
   it('resolves with output and the effective timeout', async () => {
     const { bash } = await setup({ timeoutMs: 5_000 })
     const result = await bash.run(bash.resolve({ command: 'echo hi' }))

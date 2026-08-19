@@ -164,7 +164,35 @@ export class BlockAssembler {
 
   /** Finish reason from the `finish` chunk; `{kind: 'stop'}` when the stream ended without one. */
   get finish(): FinishReason {
-    return this._finish ?? { kind: 'stop' }
+    const explicit = this._finish
+    if (explicit !== undefined && (explicit.kind === 'error' || explicit.kind === 'aborted' || explicit.kind === 'max-tokens')) {
+      return explicit
+    }
+    // A tool call without a name can never be dispatched and must not be
+    // written back into history: treat the stream as malformed instead of
+    // assembling a block that poisons the next request.
+    if (this.hasNamelessToolCall()) {
+      return {
+        kind: 'error',
+        failure: { code: 'MALFORMED_RESPONSE', message: 'tool call missing name' },
+      }
+    }
+    return explicit ?? { kind: 'stop' }
+  }
+
+  /** Whether any assembled tool call lacks a name. */
+  private hasNamelessToolCall(): boolean {
+    for (const index of this.order) {
+      const partial = this.partials.get(index)
+      if (partial === undefined || partial.blockType !== 'tool-call') continue
+      // A bare block-start with no deltas and no close is not a tool call.
+      if (partial.block === undefined
+        && partial.toolCallId === undefined
+        && partial.toolCallArguments === '') continue
+      const block = partial.block ?? this.assemble(partial, index)
+      if (block.type === 'tool-call' && block.name.trim() === '') return true
+    }
+    return false
   }
 
   /**

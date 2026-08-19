@@ -7,8 +7,31 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 import { TitleBar } from './TitleBar.tsx'
+import { CrashOverlay } from './crash-overlay.tsx'
+import { pollForManifest } from './manifest-poller.ts'
+import { activateNewSession } from './tray-actions.ts'
+import { updateStatusText } from '../shared/update-status.ts'
 import type { UpdateStatus } from '../shared/ipc.ts'
 import './styles.css'
+
+/** Count sessions through the desktop bridge (tray verification helper). */
+async function sessionCount(): Promise<number> {
+  try {
+    const body = JSON.stringify({
+      type: 'client-request',
+      rpcId: 'tray-count',
+      method: 'session.list',
+      payload: {},
+    })
+    const raw = await window.desktop.runtime.unary('session.list', body)
+    const parsed = JSON.parse(raw.body) as {
+      result?: { value?: { items?: unknown[] } }
+    }
+    return parsed.result?.value?.items?.length ?? 0
+  } catch {
+    return 0
+  }
+}
 
 function App() {
   const [info, setInfo] = useState('')
@@ -16,6 +39,7 @@ function App() {
   const [manifest, setManifest] = useState<unknown>(null)
   const [exportedPath, setExportedPath] = useState<string | null>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ kind: 'idle' })
+  const [crashed, setCrashed] = useState(false)
   const webHostRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -25,15 +49,63 @@ function App() {
         setInfo(`${value.appVersion} · Electron ${value.electronVersion} · ${value.platform}/${value.arch}`)
       }
     })
-    void window.desktop.runtime.getBootManifest().then((bootManifest) => {
-      if (active) {
-        setRuntimeAttached(bootManifest !== null)
+    // The runtime attaches a moment after the renderer mounts; the boot
+    // manifest can therefore be null on the first probe. Poll with backoff
+    // until it lands (unmount aborts); the shell never gives up on its own.
+    const controller = new AbortController()
+    pollForManifest(
+      () => window.desktop.runtime.getBootManifest(),
+      (bootManifest) => {
+        if (!active) return
+        setRuntimeAttached(true)
         setManifest(bootManifest)
-      }
-    })
+      },
+      { signal: controller.signal },
+    )
     return () => {
       active = false
+      controller.abort()
     }
+  }, [])
+
+  // Tray "new session": prefer the sidebar flow, fall back to the RPC lane.
+  useEffect(() => {
+    if (!runtimeAttached) return
+    return window.desktop.tray.onNewSession(() => {
+      void activateNewSession({
+        clickNewSession: async () => {
+          const button = document.querySelector<HTMLButtonElement>('button[aria-label*="新建会话"]')
+          if (button === null) return false
+          const countBefore = await sessionCount()
+          button.click()
+          // A sidebar click without a selected workspace creates nothing; give
+          // the UI a moment and verify before deciding to fall back to RPC.
+          await new Promise(resolve => setTimeout(resolve, 1200))
+          return (await sessionCount()) > countBefore
+        },
+        rpcCreateSession: async () => {
+          const body = JSON.stringify({
+            type: 'client-request',
+            rpcId: 'tray-new-session',
+            method: 'session.create',
+            payload: {},
+          })
+          const raw = await window.desktop.runtime.unary('session.create', body)
+          if (raw.status !== 200) throw new Error('session.create failed')
+        },
+      })
+    })
+  }, [runtimeAttached])
+
+  // After repeated renderer crashes the main process stops reloading; the
+  // recovery reload that follows boots a live renderer, which queries the
+  // crash state and surfaces the overlay instead of a dead window.
+  useEffect(() => {
+    let active = true
+    void window.desktop.shell.crashState().then((state) => {
+      if (active) setCrashed(state.crashed)
+    })
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
@@ -52,7 +124,14 @@ function App() {
 
   return (
     <div className="desktop-shell">
-      <TitleBar title="DeepSeek Harness" />
+      <TitleBar title="DeepSeek Harness" updateStatus={updateStatus} />
+      {crashed && (
+        <CrashOverlay
+          onReload={() => {
+            void window.desktop.shell.resetCrash().then(() => { location.reload() })
+          }}
+        />
+      )}
       {runtimeAttached && manifest !== null
         ? <div className="web-ui-host" ref={webHostRef} />
         : (
@@ -92,26 +171,6 @@ function App() {
         )}
     </div>
   )
-}
-
-/** Human-readable update status line for the shell placeholder. */
-function updateStatusText(status: UpdateStatus): string {
-  switch (status.kind) {
-    case 'idle':
-      return '更新：未检查'
-    case 'checking':
-      return '更新：检查中…'
-    case 'available':
-      return `更新：发现 ${status.version}，正在下载…`
-    case 'downloading':
-      return `更新：下载中 ${status.percent}%`
-    case 'downloaded':
-      return `更新：${status.version} 已就绪`
-    case 'not-available':
-      return '更新：已是最新版本'
-    case 'error':
-      return `更新失败：${status.message}`
-  }
 }
 
 const root = document.getElementById('root')

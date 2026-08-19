@@ -41,6 +41,10 @@ const api: DesktopApi = {
     onNewSession: callback => subscribe(IPC.trayNewSession, callback),
     onShow: callback => subscribe(IPC.trayShow, callback),
   },
+  shell: {
+    crashState: () => ipcRenderer.invoke(IPC.shellCrashState),
+    resetCrash: () => ipcRenderer.invoke(IPC.shellResetCrash),
+  },
   runtime: {
     unary: (method, body) => ipcRenderer.invoke(IPC.runtimeUnary, method, body),
     subscribe: (stream, onFrame, onEnd) => {

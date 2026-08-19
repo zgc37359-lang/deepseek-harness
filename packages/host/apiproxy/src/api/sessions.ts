@@ -313,6 +313,15 @@ export interface SessionsApi {
   Promise<RpcResponse<{ title: string; seq: number }>>
 
   /**
+   * Exports one session tree as a ZIP archive over the RPC channel — the
+   * desktop carrier's download lane (HTTP deployments keep GET
+   * /api/session.export). Returns the archive bytes as base64 plus the
+   * conventional download filename.
+   */
+  exportZip(request: RpcRequest<{ sessionId: SessionId; includeDescendants?: boolean }>, signal: AbortSignal):
+  Promise<RpcResponse<{ filename: string; bytesBase64: string }>>
+
+  /**
    * Sends a message. content is core's ContentBlock[] verbatim; mode maps 1:1 — queue→send, steer→steer.
    * A prompt whose content is exactly one text block starting with '/' is a slash command: the host
    * executes it through the command registry (mode-agnostic) and it is never sent to the model. A

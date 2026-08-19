@@ -109,6 +109,18 @@ describe('the provider hand-off', () => {
     expect(result.sandbox).toEqual({ mode: 'read-only', denied: false, enforcement: 'full' })
   })
 
+  it('merges the provider runner env over the caller env', async () => {
+    const { bash } = await setup({}, () => ({
+      argv: ['node', '-e', 'process.stdout.write(process.env.DSH_RUNNER ?? "missing")'],
+      env: { DSH_RUNNER: 'runner-ok' },
+      enforcement: 'full',
+      denialSignatures: UNIX_SIGNATURES,
+      runnerFailureRules: RUNNER_FAILURE,
+    }))
+    const result = await bash.run(bash.resolve({ command: 'true' }))
+    expect(result.stdout.text).toBe('runner-ok')
+  })
+
   it('starts a non-Bash runner before the confined inner Bash evaluates BASH_ENV', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'dsh-bash-env-order-'))
     const hook = join(dir, 'hook.sh')

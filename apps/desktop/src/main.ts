@@ -6,8 +6,9 @@
  * @module @deepseek-ai/dsh-desktop/main
  */
 
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { mkdirSync } from 'node:fs'
+import { rm, stat } from 'node:fs/promises'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { inspect } from 'node:util'
 import {
@@ -47,6 +48,11 @@ import { collectDiagnostics } from './diagnostics.ts'
 import { runPtyProbe } from './pty-probe.ts'
 import { runStreamBenchmark } from './bench-stream.ts'
 import { runPerfProbe } from './perf-test.ts'
+import { MemorySampler } from './memory.ts'
+import { writeBase64Stream } from './download.ts'
+import { appendLogLine, DEFAULT_LOG_KEEP, DEFAULT_LOG_MAX_BYTES } from './main-log.ts'
+import { MAX_RELOAD_AFTER_CRASH, shouldRecoverReload } from './crash-policy.ts'
+import { matchBundleRequest } from './bundle-request.ts'
 // electron-updater declares `autoUpdater` as a getter on its CJS exports, which
 // Node's ESM named-export interop cannot statically detect; the default import
 // (module.exports) always carries it.
@@ -67,6 +73,10 @@ const BENCH_STREAM = process.argv.includes('--bench-stream')
 const PERF_TEST = process.argv.includes('--perf-test')
 const SMOKE_TIMEOUT_MS = 120_000
 const SHUTDOWN_TIMEOUT_MS = 10_000
+const MEMORY_SAMPLE_INTERVAL_MS = (() => {
+  const parsed = Number(process.env.DSH_DESKTOP_MEMORY_SAMPLE_MS)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000
+})()
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -127,12 +137,25 @@ crashReporter.start({ uploadToServer: false, compress: true })
 
 const userDataDir = app.getPath('userData')
 const logFile = join(userDataDir, 'logs', 'main.log')
-mkdirSync(dirname(logFile), { recursive: true })
 
-/** Append one timestamped line to the desktop main-process log. */
-function log(level: 'info' | 'warn' | 'error', message: string): void {
-  appendFileSync(logFile, `[${new Date().toISOString()}] ${level} ${message}\n`)
+/** Parse a positive integer environment override, falling back when unset. */
+function positiveEnv(name: string, fallback: number): number {
+  const parsed = Number(process.env[name])
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
+
+/** Rotation budget from the environment; defaults keep main.log bounded. */
+const logMaxBytes = positiveEnv('DSH_DESKTOP_LOG_MAX_BYTES', DEFAULT_LOG_MAX_BYTES)
+const logKeep = positiveEnv('DSH_DESKTOP_LOG_KEEP', DEFAULT_LOG_KEEP)
+
+/** Append one timestamped line to the main-process log (rotating at the budget). */
+function log(level: 'info' | 'warn' | 'error', message: string): void {
+  appendLogLine(logFile, level, message, { maxBytes: logMaxBytes, keep: logKeep })
+}
+
+const memorySampler = new MemorySampler(MEMORY_SAMPLE_INTERVAL_MS, (sample) => {
+  log('info', `memory sample ${JSON.stringify(sample)}`)
+})
 
 // Desktop launches may start with stdout/stderr already closed (Explorer,
 // Start-Process, test harness teardown). Node's default warning printer
@@ -140,7 +163,12 @@ function log(level: 'info' | 'warn' | 'error', message: string): void {
 // main-process exception that Electron shows as a JavaScript error dialog.
 // Route warnings into the main-process log instead, and contain the EPIPE
 // case specifically.
+// Known dependency warning (Electron runtime, not our code): log once per
+// message instead of every boot so main.log stays readable.
+const seenWarnings = new Set<string>()
 process.on('warning', (warning) => {
+  if (seenWarnings.has(warning.message)) return
+  seenWarnings.add(warning.message)
   log('warn', warning.message)
 })
 process.on('uncaughtException', (error) => {
@@ -203,9 +231,14 @@ function createMainWindow(): void {
   })
   win.webContents.on('render-process-gone', (_event, details) => {
     log('error', `renderer gone: ${details.reason}`)
+    memorySampler.take()
     if (isQuitting || SMOKE_TEST) return
     rendererCrashes += 1
-    if (rendererCrashes <= 2) win.webContents.reload()
+    // Budget: two auto-reloads, plus one reload that brings a live renderer
+    // back to surface the crash overlay (a dead renderer shows nothing).
+    if (shouldRecoverReload(rendererCrashes)) {
+      win.webContents.reload()
+    }
   })
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
@@ -288,7 +321,13 @@ function registerIpc(): void {
     })
     const root = picked.filePaths[0]
     if (picked.canceled || root === undefined) return { cancelled: true }
-    const path = await collectDiagnostics(root, logFile, currentAppInfo(), app.getPath('crashDumps'))
+    const path = await collectDiagnostics(
+      root,
+      logFile,
+      currentAppInfo(),
+      app.getPath('crashDumps'),
+      memorySampler.snapshot(),
+    )
     log('info', `diagnostics exported to ${path}`)
     return { cancelled: false, path }
   })
@@ -301,7 +340,7 @@ function registerIpc(): void {
     return clipboard.readText() === text
   })
 
-  ipcMain.handle(IPC.downloadSave, (_event, filename: unknown, bytesBase64: unknown) => {
+  ipcMain.handle(IPC.downloadSave, async (_event, filename: unknown, bytesBase64: unknown) => {
     if (!isDownloadFilename(filename) || !isBase64Payload(bytesBase64)) {
       return { ok: false, error: 'invalid download arguments' }
     }
@@ -310,7 +349,12 @@ function registerIpc(): void {
     mkdirSync(downloads, { recursive: true })
     const path = join(downloads, safeName)
     try {
-      writeFileSync(path, Buffer.from(bytesBase64, 'base64'))
+      const written = await writeBase64Stream(path, bytesBase64)
+      const size = (await stat(path)).size
+      if (size !== written) {
+        await rm(path, { force: true })
+        throw new Error(`download size mismatch: wrote ${written}, disk has ${size}`)
+      }
       log('info', `download saved to ${path}`)
       return { ok: true, path }
     } catch (error) {
@@ -349,6 +393,14 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.windowIsMaximized, () => mainWindow?.isMaximized() ?? false)
+
+  ipcMain.handle(IPC.shellCrashState, () => {
+    return { crashed: rendererCrashes > MAX_RELOAD_AFTER_CRASH }
+  })
+
+  ipcMain.handle(IPC.shellResetCrash, () => {
+    rendererCrashes = 0
+  })
 
   ipcMain.handle(IPC.windowMenuAction, (_event, rawAction: unknown) => {
     if (!isWindowMenuAction(rawAction)) return
@@ -465,11 +517,8 @@ function bootstrap(): void {
   createMainWindow()
   createTray()
   protocol.handle('dsh-bundle', async (request) => {
-    const url = new URL(request.url)
-    const match = decodeURIComponent(url.pathname).match(/^\/plugins\/(.+)\/client\.js$/)
-    if (match === null) return new Response('not found', { status: 404 })
-    const id = match[1]
-    if (id === undefined) return new Response('not found', { status: 404 })
+    const id = matchBundleRequest(new URL(request.url))
+    if (id === null) return new Response('not found', { status: 404 })
     try {
       return new Response(new Uint8Array(await runtimeBundle(id)), {
         headers: { 'content-type': 'application/javascript' },
@@ -485,6 +534,8 @@ function bootstrap(): void {
     }, SMOKE_TIMEOUT_MS)
   }
   log('info', `desktop boot: ${app.getVersion()} electron ${process.versions.electron}`)
+  memorySampler.start()
+  memorySampler.take()
   if (!SMOKE_TEST && app.isPackaged) {
     // Test hook: install-cycle gates point electron-updater at a local feed
     // (generic provider serving latest.yml + installer) instead of the
@@ -500,6 +551,7 @@ function bootstrap(): void {
   void bootDesktopRuntime().then(() => {
     runtimeReady = true
     log('info', 'desktop runtime attached')
+    memorySampler.take()
     maybeFinishSmoke()
     if (PERF_TEST) {
       const win = mainWindow
@@ -522,6 +574,7 @@ function bootstrap(): void {
   }).catch((error: unknown) => {
     const detail = inspect(error, { depth: 6, colors: false })
     log('error', `desktop runtime boot failed: ${detail}`)
+    memorySampler.take()
     if (SMOKE_TEST) {
       console.error(`DESKTOP_RUNTIME_BOOT_FAILED\n${detail}`)
       app.exit(1)
@@ -534,6 +587,7 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
   log('info', 'shutdown: disposing harness tree')
+  memorySampler.take()
   const timer = setTimeout(() => {
     log('error', 'shutdown timed out; forcing exit')
     app.exit(0)
@@ -544,6 +598,7 @@ async function shutdown(): Promise<void> {
     log('error', `shutdown dispose failed: ${String(error)}`)
   }
   clearTimeout(timer)
+  memorySampler.stop()
   app.exit(0)
 }
 

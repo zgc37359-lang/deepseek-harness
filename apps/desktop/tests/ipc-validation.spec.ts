@@ -136,6 +136,33 @@ describe('sanitizeDownloadFilename', () => {
     expect(sanitizeDownloadFilename('')).toBe('')
     expect(sanitizeDownloadFilename(':::::')).toBe('_____')
   })
+
+  it('prefixes Windows reserved device names (base name, case-insensitive)', () => {
+    for (const reserved of ['CON', 'con', 'Con', 'PRN', 'prn', 'AUX', 'aux', 'NUL', 'nul']) {
+      expect(sanitizeDownloadFilename(reserved)).toBe('_' + reserved)
+    }
+    expect(sanitizeDownloadFilename('COM1')).toBe('_COM1')
+    expect(sanitizeDownloadFilename('com9')).toBe('_com9')
+    expect(sanitizeDownloadFilename('LPT1')).toBe('_LPT1')
+    expect(sanitizeDownloadFilename('lpt9.x')).toBe('_lpt9.x')
+    expect(sanitizeDownloadFilename('CON.txt')).toBe('_CON.txt')
+    expect(sanitizeDownloadFilename('aux.pdf')).toBe('_aux.pdf')
+  })
+
+  it('keeps non-reserved lookalike names untouched', () => {
+    expect(sanitizeDownloadFilename('COM10')).toBe('COM10')
+    expect(sanitizeDownloadFilename('CON2')).toBe('CON2')
+    expect(sanitizeDownloadFilename('console.txt')).toBe('console.txt')
+    expect(sanitizeDownloadFilename('report.md')).toBe('report.md')
+  })
+
+  it('normalizes trailing dots and spaces', () => {
+    expect(sanitizeDownloadFilename('name.')).toBe('name_')
+    expect(sanitizeDownloadFilename('name ')).toBe('name_')
+    expect(sanitizeDownloadFilename('a..')).toBe('a_')
+    expect(sanitizeDownloadFilename('CON.')).toBe('_CON_')
+    expect(sanitizeDownloadFilename('aux. ')).toBe('_aux_')
+  })
 })
 
 describe('isDownloadRevealPath', () => {

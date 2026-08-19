@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import { createUserMessage, CallId, ReasoningEffortId, createMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
-import { serializeMessages, serializeRequest } from '../src/serialize.ts'
+import { serializeMessages, serializeRequest, stripLeadingThinking } from '../src/serialize.ts'
 
 function request(overrides: Partial<GenerateOptions> = {}): GenerateOptions {
   return { provider: 'deepseek-official', model: 'deepseek-v4-flash', messages: [], ...overrides }
@@ -102,6 +102,58 @@ describe('serializeMessages', () => {
       }),
     ])
     expect(wire).toEqual([{ role: 'tool', tool_call_id: 'call-1', content: '(no output)' }])
+  })
+
+  it('skips a nameless tool call and its orphaned result in history', () => {
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [
+          { type: 'reasoning', text: 'I should search.' },
+          { type: 'tool-call', id: CallId('call-bad'), name: '', arguments: '{"pattern":"x"}' },
+        ],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      createUserMessage({
+        content: [{
+          type: 'tool-result',
+          toolCallId: CallId('call-bad'),
+          content: [{ type: 'text', text: '(no output)' }],
+        }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ])
+
+    // The malformed turn has no usable content on the wire: the empty-name
+    // call is dropped together with its orphaned result.
+    expect(wire).toEqual([])
+  })
+
+  it('keeps named tool calls and their results in history', () => {
+    const wire = serializeMessages([
+      createMessage({
+        role: 'assistant',
+        content: [{ type: 'tool-call', id: CallId('call-ok'), name: 'read', arguments: '{}' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+      createUserMessage({
+        content: [{
+          type: 'tool-result',
+          toolCallId: CallId('call-ok'),
+          content: [{ type: 'text', text: 'ok' }],
+        }],
+        source: { kind: 'plugin', plugin: 'test' },
+      }),
+    ])
+
+    expect(wire).toEqual([
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'call-ok', type: 'function', function: { name: 'read', arguments: '{}' } }],
+      },
+      { role: 'tool', tool_call_id: 'call-ok', content: 'ok' },
+    ])
   })
 
   it('splits mixed user text + tool results into separate wire messages', () => {
@@ -301,5 +353,45 @@ describe('review fixes: assistant content shapes', () => {
       source: { kind: 'plugin', plugin: 'test' },
     })])
     expect(wire[0]).toMatchObject({ content: '' })
+  })
+})
+describe('stripLeadingThinking', () => {
+  it('removes a leading closed thinking segment and keeps the answer', () => {
+    expect(stripLeadingThinking('<thinking>abc</thinking>answer')).toBe('answer')
+  })
+
+  it('removes an unclosed leading thinking segment entirely', () => {
+    expect(stripLeadingThinking('<thinking>abc')).toBe('')
+  })
+
+  it('tolerates leading whitespace before the tag', () => {
+    expect(stripLeadingThinking('  <thinking>x</thinking>\nanswer')).toBe('\nanswer')
+  })
+
+  it('is case-insensitive on both tags', () => {
+    expect(stripLeadingThinking('<THINKING>x</THINKING>y')).toBe('y')
+  })
+
+  it('leaves ordinary text and mid-text literals untouched', () => {
+    expect(stripLeadingThinking('plain text')).toBe('plain text')
+    expect(stripLeadingThinking('look <thinking> mid')).toBe('look <thinking> mid')
+  })
+})
+
+describe('serializeMessages thinking-leak defense', () => {
+  it('strips a leaked thinking segment from assistant text on the wire', () => {
+    const wire = serializeMessages([createMessage({
+      role: 'assistant', content: [{ type: 'text', text: '<thinking>leak</thinking>answer' }],
+      source: { kind: 'plugin', plugin: 'test' },
+    })])
+    expect(wire).toEqual([{ role: 'assistant', content: 'answer' }])
+  })
+
+  it('strips an unclosed leaked thinking segment to empty content', () => {
+    const wire = serializeMessages([createMessage({
+      role: 'assistant', content: [{ type: 'text', text: '<thinking>leak' }],
+      source: { kind: 'plugin', plugin: 'test' },
+    })])
+    expect(wire).toEqual([{ role: 'assistant', content: '' }])
   })
 })

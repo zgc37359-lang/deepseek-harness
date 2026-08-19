@@ -181,6 +181,18 @@ describe.skipIf(!pwshAvailable())('SandboxPwshExecutor', () => {
     expect(result.sandbox).toEqual({ mode: 'read-only', denied: false, enforcement: 'full' })
   }, 30_000)
 
+  it('merges the provider runner env over the caller env', async () => {
+    const { executor } = await setup(() => ({
+      argv: ['node', '-e', 'process.stdout.write(process.env.DSH_RUNNER ?? "missing")'],
+      env: { DSH_RUNNER: 'runner-ok' },
+      enforcement: 'full',
+      denialSignatures: [],
+      runnerFailureRules: [],
+    }))
+    const result = await executor.run(executor.resolve({ command: 'echo never', sandboxPolicy: RO }))
+    expect(result.stdout.text).toBe('runner-ok')
+  }, 30_000)
+
   it('advertises the deployment default mode and stamps the deployment policy when none rides the request', async () => {
     const { executor, calls } = await setup()
     expect(executor.sandboxMode).toBe('workspace-write')

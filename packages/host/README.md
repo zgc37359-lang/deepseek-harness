@@ -7,6 +7,7 @@ The host side of the dsh web GUI: the API gateway every client shape shares, and
 | Package | Role | ctx key |
 |---|---|---|
 | [`apiproxy/`](apiproxy/README.md) | Shared host API gateway and wire contract | `ctx.apiProxy` |
+| [`desktop-host/`](desktop-host/README.md) | In-process desktop host over the transport-free gateway | `ctx.desktopHost` |
 | [`webserver/`](webserver/README.md) | HTTP route carrier | `ctx.webServer` |
 | [`frontend-static/`](frontend-static/README.md) | SPA dist server on the webserver fallback seat | consumes `ctx.webServer` |
 | [`directory-picker/`](directory-picker/README.md) | Workspace-directory picking seam | `ctx.directoryPicker` |

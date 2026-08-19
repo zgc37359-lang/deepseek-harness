@@ -1,11 +1,14 @@
 import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import type { WindowMenuAction } from '../shared/ipc.ts'
+import { updateStatusText } from '../shared/update-status.ts'
+import type { UpdateStatus, WindowMenuAction } from '../shared/ipc.ts'
 
 interface TitleBarProps {
   title: string
+  /** Always-visible update status; undefined hides the entry (tests, legacy). */
+  updateStatus?: UpdateStatus
 }
 
-export function TitleBar({ title }: TitleBarProps) {
+export function TitleBar({ title, updateStatus }: TitleBarProps) {
   const [maximized, setMaximized] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
 
@@ -60,6 +63,23 @@ export function TitleBar({ title }: TitleBarProps) {
       }}
     >
       <div className="titlebar__title">{title}</div>
+      {updateStatus !== undefined && (
+        <div className="titlebar__updates">
+          <button
+            className="titlebar__update-button"
+            type="button"
+            aria-label="检查更新"
+            disabled={updateStatus.kind === 'checking' || updateStatus.kind === 'downloading'}
+            onClick={() => {
+              void (updateStatus.kind === 'downloaded'
+                ? window.desktop.updates.install()
+                : window.desktop.updates.check())
+            }}
+          >
+            {updateStatusText(updateStatus)}
+          </button>
+        </div>
+      )}
       <div className="titlebar__controls">
         <button
           className="titlebar__button"

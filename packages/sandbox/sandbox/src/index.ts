@@ -95,6 +95,14 @@ export interface RunnerFailureRule {
 export interface ConfinedArgv {
   /** The wrapped argv (runner, profile, separator, then the caller's argv). */
   argv: string[]
+  /**
+   * Environment entries the wrapped argv must be spawned with. Backends that
+   * launch their runner through a process executable with a mandatory mode
+   * (Electron's `ELECTRON_RUN_AS_NODE` for a runner spawned via the app
+   * binary) surface it here; consumers merge it over the caller's spawn
+   * environment. Absent when the backend needs no overrides.
+   */
+  env?: Readonly<Record<string, string>>
   /** How completely the selected backend enforces the policy's file effects. */
   enforcement: SandboxEnforcement
   /**

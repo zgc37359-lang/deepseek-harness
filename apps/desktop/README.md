@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 ![Electron](https://img.shields.io/badge/Electron-43.4-47848F?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2B-0078D6?style=flat-square)
-![Version](https://img.shields.io/badge/Version-0.1.0--rc.5-4B8BBE?style=flat-square)
+![Version](https://img.shields.io/badge/Version-0.1.0--rc.7-4B8BBE?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)
 
 ---
@@ -16,11 +16,11 @@ English | [中文](README.zh.md)
 | | |
 |---|---|
 | 🪟 **Frameless window** | Fully custom title bar with its own window menu (`Alt+Space`), maximize / restore / minimize, and close-to-tray semantics |
-| 🧲 **Tray lifetime** | Closing the window hides it; the tray keeps the app alive — open the main window or start a new session without touching the desktop |
+| 🧲 **Tray lifetime** | Closing the window hides it; the tray keeps the app alive — open the main window or start a new session (tray → 新建会话) without touching the desktop |
 | 🔒 **Single instance** | One app, one process tree; a second launch focuses the existing window |
 | ⚡ **In-process runtime** | The complete Harness plugin tree runs inside the main process and talks to the UI over a whitelisted IPC bridge — **zero localhost HTTP ports, zero network listeners** |
 | 🛡️ **Hardened renderer** | `sandbox` + `contextIsolation` + a whitelisted preload API; the main process is the only system-capability boundary (window, tray, dialogs, clipboard, downloads, updates) |
-| 🔁 **Auto updates** | `electron-updater` wired end to end — check / download / install from GitHub Releases, surfaced in the UI |
+| 🔁 **Auto updates** | `electron-updater` wired end to end — check / download / install from the fork's GitHub Releases, surfaced by an always-visible title-bar entry |
 | 🧾 **Persistent tool grants** | Per-workspace, durable, revocable approvals for agent tool calls (filesystem, shell, …) |
 | 📦 **One-click diagnostics** | Export a timestamped bundle (main log + version/environment snapshot) for bug reports |
 
@@ -99,16 +99,39 @@ The Windows CI workflow (`windows-desktop.yml`) runs against the **packaged exe*
 | `e2e-window` | Visible window boots, Web UI mounts, maximize/restore and close-to-tray behave |
 | `ui-matrix` | 60 interactive steps across shell, sidebar, composer, settings, conversation |
 | `stress-test` | Burst messages, 120-line output, rapid sessions, memory/event-loop budgets |
+| `soak-test` | N-turn UI soak against a mock LLM; gates main-process RSS and handle growth |
+| `load-older-e2e` | Restores an oversized session; asserts "Load earlier" visibly adds chat nodes |
+| `verify-install` | Checks packaged-closure markers, installed-vs-built parity, and smoke boot |
 | `install-cycle` | Silent install → smoke → local-feed upgrade (incl. corrupted-package error) → silent uninstall → residue checks, on a fresh hosted runner |
 
 ---
 
+## 🩹 Fixed in this batch (2026-08)
+
+| # | Issue | Fix |
+|---|---|---|
+| 1 | Model thinking content leaked into the visible output (the model streamed its CoT inside `delta.content` wrapped in `<thinking>`) | `llm-deepseek` translate now routes a content stream that begins with `<thinking>` into the reasoning block (cross-fragment tags, deduped against `reasoning_content`); serialize strips leading `<thinking>` segments on replay so history never feeds the leak back to the model |
+| 2 | Tray「新建会话」did nothing (no renderer consumer of the event) | The renderer now activates the sidebar new-session flow, falling back to the `session.create` RPC lane |
+| 3 | Auto-update always failed for fork installs (`publish` pointed at the upstream repo) and the update UI vanished once the Web UI mounted | `publish` now points at `zgc37359-lang/deepseek-harness`; the title bar carries an always-visible update entry (status / 检查更新 / 重启安装) |
+| 4 | Downloads with Windows reserved device names (CON, NUL, …) created unusable "ghost" files while reporting success | Filename sanitization prefixes reserved base names and normalizes trailing dots/spaces |
+| 5 | `main.log` grew without bound | Size-bounded rotation (`DSH_DESKTOP_LOG_MAX_BYTES`, default 10 MiB; `DSH_DESKTOP_LOG_KEEP`, default 3) |
+| 6 | After two renderer crashes the window silently stayed dead | Bounded auto-reload (2), then a visible crash overlay with a 重新加载 recovery button |
+| 7 | Malformed `dsh-bundle` URLs could throw inside the protocol handler | `matchBundleRequest` decodes defensively and answers 404 |
+| 8 | The placeholder manifest poll gave up after 30 s | Backoff polling until the runtime attaches (aborted on unmount) |
+| 9 | Stray compiled artifacts sat untracked in `packages/client/connection/src` | Deleted and gitignored |
+| 10 | `fs.Stats constructor is deprecated` logged on every boot (Electron runtime origin) | Repeated warnings are logged once per message; origin documented below |
+
+Every fix above landed with its unit/component tests first (TDD), plus the `e2e-window` gate extended to assert the title-bar update entry, the tray new-session flow, and renderer crash recovery. The e2e gate also gained an isolated mode (`DSH_E2E_ISOLATED=1`) so it can run beside a live instance without touching its data.
+
 ## 📌 Known limitations
 
+- The `fs.Stats constructor is deprecated.` warning at boot originates inside the Electron runtime's Node (not reproducible in plain Node, not present in any dependency source); it is harmless and logged once per message.
+- Older sessions recorded before fix #1 may still display leaked `<thinking>` text in history; new output and model-side replay are clean.
 - Win11 hover snap-layout flyout is unavailable on the custom maximize button; edge-drag snapping and Win+arrow keys still work.
 - Move/size from the custom window menu use a main-process cursor loop.
-- Installers are unsigned until a code-signing certificate is configured (SmartScreen warning; auto-update stays meaningful only once signed releases exist).
+- Installers are unsigned until a code-signing certificate is configured (SmartScreen warnings may appear during install and update download).
 - The renderer CSP allows `unsafe-eval` because the vendored Cordis Loader evaluates config expressions; the renderer stays sandboxed and the main process remains the capability boundary.
+- The first launch shows a beta disclaimer ("内测声明") that must be dismissed once; this is intended onboarding, not a defect.
 
 ---
 
@@ -116,7 +139,7 @@ The Windows CI workflow (`windows-desktop.yml`) runs against the **packaged exe*
 
 See [release-testing-plan.md](release-testing-plan.md) for the full engineering plan. Short version:
 
-- **Product basics** — window-state memory, visible update entry, log rotation, crash visibility
+- **Product basics** — window-state memory (update entry, log rotation, and crash visibility shipped in the 2026-08 batch)
 - **Desktop experience** — global hotkey, system notifications, theme-following title bar, richer tray
 - **Platform capabilities** — `dsh://` deep links, file drag-and-drop, JumpList / taskbar progress, MCP management UI
 - **Release chain** — code signing, GitHub Releases automation, stable/beta channels, differential updates

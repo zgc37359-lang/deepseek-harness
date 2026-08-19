@@ -15,7 +15,7 @@
 | GUI 功能 | `ui-matrix.mjs`（60 步交互矩阵，脚本实测 63 个 `step()` 调用，含 reset 辅助步骤） | `scripts/ui-matrix.mjs` | ❌ 仅本地（Agent Note 记录为本地门禁） |
 | 压力 | `stress-test.mjs`（burst/大输出/快速会话/drift/内存 delta，预算：p95≤200ms、delta≤700MiB、零 console 错误） | `scripts/stress-test.mjs` | ❌ 仅本地 |
 | 性能 | perf-smoke（冷启动/峰值内存）、perf-test（event-loop p95/FPS）、bench-stream（首 token/吞吐） | `scripts/*.mjs` + `src/perf-test.ts` | ✅ windows-desktop.yml，带预算 |
-| E2E 可见窗口 | `e2e-window.mjs`（启动→标题栏→Web UI 挂载→**已有加载断言**：titlebar/web-ui-host 选择器、manifest entries 非空、title 文本→截图） | `scripts/e2e-window.mjs` | ✅ windows-desktop.yml；缺交互断言与退出验证 |
+| E2E 可见窗口 | `e2e-window.mjs`（启动→标题栏→Web UI 挂载→加载断言→**2026-08 新增**：标题栏更新入口、托盘新建会话、渲染崩溃恢复（两次自动重载→覆盖层）→截图；支持 `DSH_E2E_ISOLATED=1` 隔离模式） | `scripts/e2e-window.mjs` | ✅ windows-desktop.yml |
 | 静态/质量 | typecheck/lint/duplication/hygiene（knip+publint） | 根 scripts | ✅ ci.yml（`check:ci:static`） |
 | 依赖漏洞 | Dependabot（npm 根 + python） | `.github/dependabot.yml` | ✅ |
 | 签名 | 无 | — | ❌ |
@@ -272,7 +272,7 @@ build → sign（证书注入）→ install-cycle（安装/升级/卸载/每用�
 | 优先级 | 事项 | 工作量 | 理由 |
 |---|---|---|---|
 | P0 | ui-matrix + stress-test 进 CI | 0.5d | 现成资产，最大功能缺口，一行 workflow |
-| P0 | e2e-window 补交互断言 + "关闭→退出"断言 | 0.5d | 冒烟闭环（已有加载断言，缺交互与退出） |
+| ✅ | e2e-window 补交互断言（更新入口/托盘新建会话/崩溃恢复）| 已完成 | 2026-08 批次：标题栏更新入口、托盘新建会话、崩溃覆盖层断言已入 `e2e-window.mjs`；隔离模式 `DSH_E2E_ISOLATED=1` |
 | P0 | 安装/升级/卸载脚本（install-cycle，含 error cases 与回滚） | 2–3d | Release 级唯一硬缺口 |
 | P1 | perf-smoke 加句柄/空闲 CPU；soak-test | 1–2d | 泄漏检测，nightly 前提 |
 | P1 | main.ts 拆分 + desktop-runtime 单测 | 2d | 覆盖率门禁前提 |

@@ -30,6 +30,37 @@ const DESKTOP_PRESET_ROOT = fileURLToPath(new URL('../../config/agent-presets/',
 
 let bootedCtx: Context | null = null
 
+/** The resolvers consulted by {@link resolveRuntimeSpecifier}, in order. */
+export interface RuntimeSpecifierResolvers {
+  /** Resolve from the app's own packaged closure (resources/app.asar). */
+  app(specifier: string): string
+  /** Resolve from the profiles fallback (out-of-tree plugins). */
+  profiles(specifier: string): string
+}
+
+/**
+ * Resolve one bare loader-entry specifier, preferring the app closure.
+ *
+ * The app's own closure is authoritative for in-box plugins, so an installed
+ * app on a developer machine can never pick up stale dev-tree links from the
+ * profiles fallback. The profiles fallback remains the second anchor for
+ * out-of-tree plugin names the app does not ship.
+ * @param specifier - the bare package specifier to resolve.
+ * @param resolvers - the ordered resolution anchors.
+ * @returns the resolved absolute file path.
+ * @throws the profiles resolver's error when neither anchor can resolve.
+ */
+export function resolveRuntimeSpecifier(
+  specifier: string,
+  resolvers: RuntimeSpecifierResolvers,
+): string {
+  try {
+    return resolvers.app(specifier)
+  } catch {
+    return resolvers.profiles(specifier)
+  }
+}
+
 /** The booted Harness root context, or null while none is attached. */
 export function desktopRuntimeContext(): Context | null {
   return bootedCtx
@@ -89,19 +120,15 @@ export async function bootDesktopRuntime(): Promise<DesktopRuntimeHost> {
   const ctx = await boot('dsh-desktop', rootConfig, patches, (hostCtx) => {
     // Electron's Node exposes no internal ESM ModuleLoader, so the Loader's
     // native-internals probe returns undefined. Provide a plain-resolver
-    // internal that resolves bare packages through the apps/cli closure.
+    // internal that resolves bare packages through the app closure first,
+    // then the profiles fallback for out-of-tree plugin names.
     ;(hostCtx.loader as { internal: unknown }).internal = {
       import: async (specifier: string): Promise<unknown> => {
         if (specifier.startsWith('file://')) return import(specifier)
-        let resolved: string
-        try {
-          resolved = requireFromProfiles.resolve(specifier)
-        } catch {
-          // The profiles fallback is healed from the app's closure; a package
-          // added after the last heal (e.g. preset-only plugins) resolves from
-          // the app's own node_modules instead.
-          resolved = requireFromApp.resolve(specifier)
-        }
+        const resolved = resolveRuntimeSpecifier(specifier, {
+          app: candidate => requireFromApp.resolve(candidate),
+          profiles: candidate => requireFromProfiles.resolve(candidate),
+        })
         return import(pathToFileURL(resolved).href)
       },
     }
