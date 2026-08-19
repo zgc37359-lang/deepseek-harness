@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-desktop",
-  "version": "0.1.0-rc.8",
+  "version": "0.1.0-rc.9",
   "private": true,
   "description": "Windows desktop application shell over the DeepSeek Harness web UI",
   "author": "DeepSeek AI",
@@ -8,7 +8,7 @@
   "main": "lib/types/main.js",
   "build": {
     "appId": "com.deepseek-ai.dsh-desktop",
-    "productName": "DeepSeek Harness",
+    "productName": "Harness Desktop",
     "directories": {
       "output": "dist-app"
     },

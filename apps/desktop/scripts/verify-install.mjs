@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
 const unpacked = process.argv[2] ?? join(appDir, 'dist-app2', 'win-unpacked')
-const target = process.argv[3] ?? 'C:/Users/cc/AppData/Local/Programs/DeepSeek Harness'
+const target = process.argv[3] ?? 'C:/Users/cc/AppData/Local/Programs/Harness Desktop'
 
 const failures = []
 const check = (ok, message) => {
@@ -49,7 +49,7 @@ if (existsSync(clientRuntime)) {
 }
 
 // 2) The installed copy must match the build artifact byte-for-byte.
-for (const relative of ['resources/app.asar', 'DeepSeek Harness.exe']) {
+for (const relative of ['resources/app.asar', 'Harness Desktop.exe']) {
   const source = join(unpacked, relative)
   const installed = join(target, relative)
   check(existsSync(source), `source artifact missing: ${source}`)
@@ -63,7 +63,7 @@ for (const relative of ['resources/app.asar', 'DeepSeek Harness.exe']) {
 }
 
 // 3) The installed executable must boot the full runtime.
-const exe = join(target, 'DeepSeek Harness.exe')
+const exe = join(target, 'Harness Desktop.exe')
 if (existsSync(exe)) {
   const smoke = spawnSync(exe, ['--smoke-test'], {
     encoding: 'utf8',

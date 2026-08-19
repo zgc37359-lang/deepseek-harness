@@ -17,12 +17,12 @@ import { resolve } from 'node:path'
 import { isDesktopRunning } from './mock-llm.mjs'
 
 if (isDesktopRunning()) {
-  console.error('DESKTOP_DPI_FAIL: DeepSeek Harness is already running; close it before this gate')
+  console.error('DESKTOP_DPI_FAIL: Harness Desktop is already running; close it before this gate')
   process.exit(1)
 }
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'DeepSeek Harness.exe')
+const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'Harness Desktop.exe')
 const scales = (process.env.DSH_DESKTOP_DPI_SCALES ?? '1,1.5,2')
   .split(',').map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))

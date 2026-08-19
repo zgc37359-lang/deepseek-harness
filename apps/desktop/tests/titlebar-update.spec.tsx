@@ -44,7 +44,7 @@ afterEach(() => {
 })
 
 function render(status: UpdateStatus): void {
-  act(() => { root.render(<TitleBar title="DeepSeek Harness" updateStatus={status} />) })
+  act(() => { root.render(<TitleBar title="Harness Desktop" updateStatus={status} />) })
 }
 
 describe('TitleBar update entry', () => {
@@ -75,7 +75,7 @@ describe('TitleBar update entry', () => {
   })
 
   it('hides the entry when no update status is provided', () => {
-    act(() => { root.render(<TitleBar title="DeepSeek Harness" />) })
+    act(() => { root.render(<TitleBar title="Harness Desktop" />) })
     expect(host.querySelector('.titlebar__update-button')).toBeNull()
   })
 })

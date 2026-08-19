@@ -124,7 +124,7 @@ function App() {
 
   return (
     <div className="desktop-shell">
-      <TitleBar title="DeepSeek Harness" updateStatus={updateStatus} />
+      <TitleBar title="Harness Desktop" updateStatus={updateStatus} />
       {crashed && (
         <CrashOverlay
           onReload={() => {

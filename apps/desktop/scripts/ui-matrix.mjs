@@ -17,12 +17,12 @@ import { readdirSync, statSync } from 'node:fs'
 import { isDesktopRunning, mockLlmEnv } from './mock-llm.mjs'
 
 if (isDesktopRunning()) {
-  console.error('DESKTOP_MATRIX_FAIL: DeepSeek Harness is already running; close it before this gate')
+  console.error('DESKTOP_MATRIX_FAIL: Harness Desktop is already running; close it before this gate')
   process.exit(1)
 }
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'DeepSeek Harness.exe')
+const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'Harness Desktop.exe')
 const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms))
 const NOISE = /ERR_FILE_NOT_FOUND/i
 

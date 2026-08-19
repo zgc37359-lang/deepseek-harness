@@ -23,7 +23,7 @@ const requireFromApp = createRequire(import.meta.url)
 const { _electron } = requireFromApp('playwright')
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'DeepSeek Harness.exe')
+const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'Harness Desktop.exe')
 const screenshot = resolve(appDir, 'dist-app2', 'e2e-window.png')
 
 const isolated = process.env.DSH_E2E_ISOLATED === '1'
@@ -31,7 +31,7 @@ const isolatedDir = isolated ? mkdtempSync(join(tmpdir(), 'dsh-e2e-')) : null
 const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms))
 
 if (isDesktopRunning() && !isolated) {
-  console.error('DESKTOP_E2E_FAIL: DeepSeek Harness is already running; close it before this gate (or use DSH_E2E_ISOLATED=1)')
+  console.error('DESKTOP_E2E_FAIL: Harness Desktop is already running; close it before this gate (or use DSH_E2E_ISOLATED=1)')
   process.exit(1)
 }
 

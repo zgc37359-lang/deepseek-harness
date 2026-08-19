@@ -102,7 +102,7 @@ export async function mockLlmEnv(successText) {
 }
 
 /**
- * Whether a DeepSeek Harness instance is already running. The packaged app
+ * Whether a Harness Desktop instance is already running. The packaged app
  * holds a single-instance lock, so a second launch quits immediately; gates
  * must fail with a clear message instead of a silent timeout.
  */
@@ -110,7 +110,7 @@ export function isDesktopRunning() {
   try {
     const out = execFileSync('powershell.exe', [
       '-NoProfile', '-NonInteractive', '-Command',
-      '(Get-Process -Name "DeepSeek Harness" -ErrorAction SilentlyContinue | Measure-Object).Count',
+      '(Get-Process -Name "Harness Desktop" -ErrorAction SilentlyContinue | Measure-Object).Count',
     ], { encoding: 'utf8', windowsHide: true }).trim()
     return Number(out) > 0
   } catch {

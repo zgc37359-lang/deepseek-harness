@@ -1,6 +1,6 @@
 /**
  * Packaged-app main-thread perf test for Windows CI: launches
- * `dist-app2/win-unpacked/DeepSeek Harness.exe` with `--perf-test` and gates
+ * `dist-app2/win-unpacked/Harness Desktop.exe` with `--perf-test` and gates
  * event-loop drift (p95), renderer frame rate, and main-process idle CPU
  * during the probe window.
  *
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'DeepSeek Harness.exe')
+const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'Harness Desktop.exe')
 const eventLoopP95BudgetMs = Number(process.env.DSH_DESKTOP_EVENT_LOOP_P95_BUDGET_MS ?? 50)
 const fpsMinBudget = Number(process.env.DSH_DESKTOP_FPS_MIN_BUDGET ?? 30)
 const idleCpuBudgetPct = Number(process.env.DSH_DESKTOP_IDLE_CPU_BUDGET_PCT ?? 2)

@@ -2,10 +2,10 @@
  * Packaged-app install/upgrade/uninstall cycle gate for Windows CI.
  *
  * DANGER: the NSIS installer and uninstaller terminate any running
- * "DeepSeek Harness.exe" process and rewrite Start Menu entries and
+ * "Harness Desktop.exe" process and rewrite Start Menu entries and
  * uninstall keys matching the product name, regardless of the install
  * target directory. This gate therefore refuses to run entirely while a
- * DeepSeek Harness instance is live — never bypass that guard.
+ * Harness Desktop instance is live — never bypass that guard.
  *
  * Drives the real NSIS installer: silent install to a scratch directory,
  * smoke-launch the installed exe, exercise the electron-updater upgrade
@@ -166,7 +166,7 @@ async function upgradeSegment(installDir, newInstaller, feedDir, version) {
   writeLatestYml(feedDir, feedFile, version)
   const feed = await serveDir(feedDir)
 
-  const exe = join(installDir, 'DeepSeek Harness.exe')
+  const exe = join(installDir, 'Harness Desktop.exe')
   const { _electron } = requireFromApp('playwright')
   let app
   try {
@@ -213,10 +213,10 @@ async function upgradeSegment(installDir, newInstaller, feedDir, version) {
 
 /** Uninstall and assert residue cleanup plus user-data retention. */
 function uninstallSegment(installDir) {
-  const uninstaller = join(installDir, 'Uninstall DeepSeek Harness.exe')
-  const userData = join(process.env.APPDATA ?? '', 'DeepSeek Harness')
+  const uninstaller = join(installDir, 'Uninstall Harness Desktop.exe')
+  const userData = join(process.env.APPDATA ?? '', 'Harness Desktop')
   const userDataExisted = existsSync(userData)
-  const startMenu = join(process.env.APPDATA ?? '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'DeepSeek Harness')
+  const startMenu = join(process.env.APPDATA ?? '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Harness Desktop')
 
   if (!existsSync(uninstaller)) {
     check('uninstall:silent', false, `uninstaller missing: ${uninstaller}`)
@@ -240,10 +240,10 @@ function uninstallSegment(installDir) {
   try {
     const reg = execFileSync('reg.exe', [
       'query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
-      '/f', 'DeepSeek Harness', '/s',
+      '/f', 'Harness Desktop', '/s',
     ], { encoding: 'utf8', windowsHide: true })
-    check('uninstall:registry-cleared', !reg.includes('DeepSeek Harness'),
-      `remaining keys: ${reg.split('\n').filter((l) => l.includes('DeepSeek Harness')).slice(0, 3).join('; ')}`)
+    check('uninstall:registry-cleared', !reg.includes('Harness Desktop'),
+      `remaining keys: ${reg.split('\n').filter((l) => l.includes('Harness Desktop')).slice(0, 3).join('; ')}`)
   } catch {
     // reg query exits 1 when nothing matches: that is the passing case.
     check('uninstall:registry-cleared', true, 'no matching uninstall keys')
@@ -258,13 +258,13 @@ async function main() {
     return
   }
   // Hard gate: the NSIS installer and uninstaller both terminate any
-  // running "DeepSeek Harness.exe" process and rewrite Start Menu entries
+  // running "Harness Desktop.exe" process and rewrite Start Menu entries
   // and uninstall keys matching the product name, regardless of the target
   // directory. Running this gate while an instance is live uninstalls the
   // user's real installation, so every segment is refused up front.
   if (isDesktopRunning()) {
     console.error(
-      'install-cycle: DeepSeek Harness is running; close it before this gate (the NSIS ' +
+      'install-cycle: Harness Desktop is running; close it before this gate (the NSIS ' +
       'installer/uninstaller terminates running instances of the product name)',
     )
     process.exitCode = 1
@@ -274,15 +274,15 @@ async function main() {
 
   const installCode = silentInstall(opts.installer, opts.dir)
   check('install:silent', installCode === 0, `exit=${installCode}`)
-  const exe = join(opts.dir, 'DeepSeek Harness.exe')
+  const exe = join(opts.dir, 'Harness Desktop.exe')
   check('install:exe-present', existsSync(exe), exe)
-  check('install:uninstaller-present', existsSync(join(opts.dir, 'Uninstall DeepSeek Harness.exe')),
-    join(opts.dir, 'Uninstall DeepSeek Harness.exe'))
+  check('install:uninstaller-present', existsSync(join(opts.dir, 'Uninstall Harness Desktop.exe')),
+    join(opts.dir, 'Uninstall Harness Desktop.exe'))
 
   if (!opts.skipSmoke) {
     if (isDesktopRunning()) {
       check('smoke:launch', false,
-        'DeepSeek Harness is already running; the single-instance lock blocks the smoke launch (use --skip-smoke)')
+        'Harness Desktop is already running; the single-instance lock blocks the smoke launch (use --skip-smoke)')
     } else {
       const smoke = await runSmoke(exe)
       check('smoke:launch', smoke.smokeOk, `exit=${smoke.exitCode} smokeOk=${smoke.smokeOk}${smoke.error ? ` error=${smoke.error}` : ''}`)
@@ -296,7 +296,7 @@ async function main() {
       check('upgrade:downloaded', false, `upgrade installer not found: ${opts.upgrade}`)
     } else if (isDesktopRunning()) {
       check('upgrade:downloaded', false,
-        'DeepSeek Harness is already running; the single-instance lock blocks the upgrade launch')
+        'Harness Desktop is already running; the single-instance lock blocks the upgrade launch')
     } else {
       await upgradeSegment(opts.dir, opts.upgrade, opts.feedDir, '0.2.0')
     }

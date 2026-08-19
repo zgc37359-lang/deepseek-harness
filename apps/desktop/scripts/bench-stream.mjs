@@ -1,6 +1,6 @@
 /**
  * Packaged-app streaming benchmark for Windows CI: starts the scriptable
- * mock LLM server, launches `dist-app2/win-unpacked/DeepSeek Harness.exe`
+ * mock LLM server, launches `dist-app2/win-unpacked/Harness Desktop.exe`
  * with `--bench-stream "<task>"` pointed at it, and gates first-token
  * latency, total duration, and throughput.
  *
@@ -22,7 +22,7 @@ import { resolve } from 'node:path'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
 const repoRoot = resolve(appDir, '..', '..')
-const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'DeepSeek Harness.exe')
+const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'Harness Desktop.exe')
 const mockBin = resolve(repoRoot, 'packages', 'test-support', 'llm-mock-server', 'src', 'bin.ts')
 const apiKey = 'desktop-bench-mock-key'
 

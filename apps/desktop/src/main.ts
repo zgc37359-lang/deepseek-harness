@@ -514,7 +514,7 @@ function registerIpc(): void {
 function createTray(): void {
   const icon = nativeImage.createFromDataURL(TRAY_ICON_DATA_URL)
   tray = new Tray(icon)
-  tray.setToolTip('DeepSeek Harness Desktop')
+  tray.setToolTip('Harness Desktop')
   tray.setContextMenu(Menu.buildFromTemplate([
     {
       label: '打开主窗口',

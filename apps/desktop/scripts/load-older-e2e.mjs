@@ -19,7 +19,7 @@ const require = createRequire(fileURLToPath(new URL('../package.json', import.me
 const { _electron } = require('playwright')
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const exe = process.argv[2] ?? join(appDir, 'dist-app2', 'win-unpacked', 'DeepSeek Harness.exe')
+const exe = process.argv[2] ?? join(appDir, 'dist-app2', 'win-unpacked', 'Harness Desktop.exe')
 const SESSION_ID = 'session-7d7829f4-f93e-4e3b-9b50-6a73a762b14c'
 
 const root = mkdtempSync(join(tmpdir(), 'dsh-load-older-e2e-'))

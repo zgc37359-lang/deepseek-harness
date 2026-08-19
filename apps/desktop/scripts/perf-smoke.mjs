@@ -1,7 +1,7 @@
 /**
  * Packaged-app performance smoke for Windows CI.
  *
- * Launches dist-app2/win-unpacked/DeepSeek Harness.exe with --smoke-test,
+ * Launches dist-app2/win-unpacked/Harness Desktop.exe with --smoke-test,
  * measures the cold-start window (spawn -> DESKTOP_SMOKE_OK on stdout), and
  * samples the main process working set, handle count, and idle CPU while it
  * runs. Fails when a measurement exceeds its budget. Budgets are overridable
@@ -16,7 +16,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const appDir = fileURLToPath(new URL('..', import.meta.url))
-const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'DeepSeek Harness.exe')
+const exe = resolve(appDir, 'dist-app2', 'win-unpacked', 'Harness Desktop.exe')
 const coldStartBudgetMs = Number(process.env.DSH_DESKTOP_COLD_START_BUDGET_MS ?? 15_000)
 const peakMemoryBudgetMiB = Number(process.env.DSH_DESKTOP_PEAK_MEMORY_BUDGET_MIB ?? 1024)
 const peakHandlesBudget = Number(process.env.DSH_DESKTOP_PEAK_HANDLES_BUDGET ?? 2000)
