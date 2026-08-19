@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-desktop",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.7",
   "private": true,
   "description": "Windows desktop application shell over the DeepSeek Harness web UI",
   "author": "DeepSeek AI",

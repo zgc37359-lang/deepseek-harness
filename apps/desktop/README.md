@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 ![Electron](https://img.shields.io/badge/Electron-43.4-47848F?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2B-0078D6?style=flat-square)
-![Version](https://img.shields.io/badge/Version-0.1.0--rc.5-4B8BBE?style=flat-square)
+![Version](https://img.shields.io/badge/Version-0.1.0--rc.7-4B8BBE?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)
 
 ---
