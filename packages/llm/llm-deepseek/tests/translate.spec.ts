@@ -524,6 +524,21 @@ describe('translate: thinking-tag defense in content', () => {
     ])
   })
 
+  it('emits late text after an unclosed leading thinking segment (no answer starvation)', async () => {
+    const longLeak = 'p'.repeat(9000)
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { content: '<thinking>' + longLeak } }] },
+      { choices: [{ delta: { content: 'Here is the answer.' } }] },
+      { choices: [{ delta: {}, finish_reason: 'stop' }] },
+      DONE,
+    )))
+    const text = chunks.filter(chunk => chunk.type === 'text-delta').map(chunk => chunk.text).join('')
+    expect(text).toBe('Here is the answer.')
+    const reasoning = chunks.filter(chunk => chunk.type === 'reasoning-delta').map(chunk => chunk.text).join('')
+    expect(reasoning).toBe(longLeak)
+  })
+
   it('ignores leading whitespace before the open tag', async () => {
     const chunks = await collect(translate(feed(
       firstChunk,

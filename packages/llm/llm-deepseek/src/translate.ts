@@ -30,6 +30,14 @@ const OPEN_THINKING_TAG = '<thinking>'
 const CLOSE_THINKING_TAG = '</thinking>'
 
 /**
+ * Cap on a content-sourced thinking segment that never closes. The model
+ * sometimes emits a leaked <thinking> without its close tag; without a bound
+ * every later delta (including the real answer) would land in the reasoning
+ * block and the turn would look permanently stuck "thinking".
+ */
+const CONTENT_THINKING_MAX_CHARS = 8000
+
+/**
  * Map the wire finish_reason vocabulary to the harness FinishReason.
  * @param reason - the wire `finish_reason` string.
  * @returns the mapped reason; unrecognized values (content_filter, …) become `{kind: 'error'}` with the uppercased value as `code`.
@@ -234,6 +242,16 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
           }
           // Inside a content-sourced thinking block: find the close tag.
           const closeAt = contentPending.toLowerCase().indexOf(CLOSE_THINKING_TAG)
+          if (contentPending.length > CONTENT_THINKING_MAX_CHARS) {
+            // No close tag after a long run: treat the accumulated text as
+            // leaked thinking, then switch back to visible text so the
+            // answer is never swallowed into the reasoning block.
+            yield* appendContentReasoning(contentPending)
+            contentPending = ''
+            contentThinking = false
+            contentSawText = true
+            continue
+          }
           if (closeAt !== -1) {
             yield* appendContentReasoning(contentPending.slice(0, closeAt))
             contentPending = contentPending.slice(closeAt + CLOSE_THINKING_TAG.length)

@@ -360,8 +360,8 @@ describe('stripLeadingThinking', () => {
     expect(stripLeadingThinking('<thinking>abc</thinking>answer')).toBe('answer')
   })
 
-  it('removes an unclosed leading thinking segment entirely', () => {
-    expect(stripLeadingThinking('<thinking>abc')).toBe('')
+  it('keeps the content after an unclosed leading thinking segment (the answer may follow)', () => {
+    expect(stripLeadingThinking('<thinking>abc')).toBe('abc')
   })
 
   it('tolerates leading whitespace before the tag', () => {
@@ -387,11 +387,11 @@ describe('serializeMessages thinking-leak defense', () => {
     expect(wire).toEqual([{ role: 'assistant', content: 'answer' }])
   })
 
-  it('strips an unclosed leaked thinking segment to empty content', () => {
+  it('keeps an unclosed leaked thinking segment as text (never drops the answer)', () => {
     const wire = serializeMessages([createMessage({
-      role: 'assistant', content: [{ type: 'text', text: '<thinking>leak' }],
+      role: 'assistant', content: [{ type: 'text', text: '<thinking>leak, answer follows' }],
       source: { kind: 'plugin', plugin: 'test' },
     })])
-    expect(wire).toEqual([{ role: 'assistant', content: '' }])
+    expect(wire).toEqual([{ role: 'assistant', content: 'leak, answer follows' }])
   })
 })

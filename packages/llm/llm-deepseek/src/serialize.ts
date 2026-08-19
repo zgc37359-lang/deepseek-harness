@@ -70,8 +70,9 @@ function assertTextOnly(blocks: readonly ContentBlock[]): void {
 /**
  * Strip a leading <thinking>…</thinking> segment the model leaked into the
  * text channel. Only a segment that starts the text (after whitespace) is
- * removed; mid-text literals stay untouched. An unclosed segment removes
- * everything up to its end.
+ * removed; mid-text literals stay untouched. An unclosed segment keeps the
+ * text after the open tag (the close may have been cut off together with the
+ * answer it preceded — dropping the whole tail would lose the answer).
  * @param text - the assistant text block content.
  * @returns the text without the leading leaked thinking segment.
  */
@@ -80,7 +81,7 @@ export function stripLeadingThinking(text: string): string {
   if (open === null) return text
   const afterOpen = text.slice(open[0].length)
   const close = afterOpen.search(/<\/thinking>/i)
-  return close === -1 ? '' : afterOpen.slice(close + '</thinking>'.length)
+  return close === -1 ? afterOpen : afterOpen.slice(close + '</thinking>'.length)
 }
 
 /** Collect tool-call ids whose name is empty: unexecutable calls that must not reach the wire. */
