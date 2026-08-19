@@ -129,7 +129,7 @@ Every fix above landed with its unit/component tests first (TDD), plus the `e2e-
 - Older sessions recorded before fix #1 may still display leaked `<thinking>` text in history; new output and model-side replay are clean.
 - Win11 hover snap-layout flyout is unavailable on the custom maximize button; edge-drag snapping and Win+arrow keys still work.
 - Move/size from the custom window menu use a main-process cursor loop.
-- Installers are unsigned until a code-signing certificate is configured (SmartScreen warning; auto-update stays meaningful only once signed releases exist).
+- Installers are unsigned until a code-signing certificate is configured (SmartScreen warnings may appear during install and update download).
 - The renderer CSP allows `unsafe-eval` because the vendored Cordis Loader evaluates config expressions; the renderer stays sandboxed and the main process remains the capability boundary.
 - The first launch shows a beta disclaimer ("内测声明") that must be dismissed once; this is intended onboarding, not a defect.
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-18-desktop-shell-fix-batch.md
-2026-08-18-desktop-shell-fix-batch.md: 516949b03c9363e53a4b04b1402c7c2b05057b31
-2026-08-18-desktop-shell-fix-batch.zh.md: e3c694528df074bd14a37fcb9c7bb38592a1d527
+2026-08-18-desktop-shell-fix-batch.md: 27c4e087bf2c7a8ffe9b087c400c1201f97cffdf
+2026-08-18-desktop-shell-fix-batch.zh.md: 122021e1726b3b6af369ec1405d556bf07a4cca2

@@ -33,4 +33,4 @@ Each fix landed TDD-first: `ipc-validation`, `crash-policy`, `bundle-request`, `
 
 ## Consequences
 
-The shell now surfaces every crash and every update state; logs stay bounded; downloads never produce reserved-name ghosts; and the local e2e gate can run beside a live instance without touching its data. Update meaning still requires signed, published releases on the fork feed. Old sessions recorded before the thinking defense (separate note) may still display leaked `<thinking>` text in history.
+The shell now surfaces every crash and every update state; logs stay bounded; downloads never produce reserved-name ghosts; and the local e2e gate can run beside a live instance without touching its data. The fork feed now carries a published `v0.1.0-rc.7` desktop release (semver tag + installer assets), so the boot check resolves to "已是最新版本" for current installs and offers downloads for newer releases; code signing remains pending (SmartScreen). The desktop base was merged forward to upstream rc.7 in the same release cycle. Old sessions recorded before the thinking defense (separate note) may still display leaked `<thinking>` text in history.
