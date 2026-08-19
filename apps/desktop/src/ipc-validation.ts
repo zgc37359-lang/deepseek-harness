@@ -13,7 +13,7 @@ export const WINDOW_MENU_ACTIONS: readonly string[] = ['restore', 'move', 'size'
 
 /** Whether the raw window-menu action is whitelisted. */
 export function isWindowMenuAction(raw: unknown): raw is WindowMenuAction {
-  return typeof raw === 'string' && (WINDOW_MENU_ACTIONS as readonly string[]).includes(raw)
+  return typeof raw === 'string' && WINDOW_MENU_ACTIONS.includes(raw)
 }
 
 /** Whether a runtime unary request carries two JSON strings. */

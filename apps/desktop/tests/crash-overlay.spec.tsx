@@ -7,9 +7,6 @@ import { CrashOverlay } from '../src/renderer/crash-overlay.tsx'
 // React 18 act() requires the act-environment flag to suppress its warning.
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-// React 18 act() requires the act-environment flag to suppress its warning.
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-
 let root: Root
 let host: HTMLElement
 
@@ -42,7 +39,7 @@ describe('CrashOverlay', () => {
 
   it('falls back to location.reload when no handler is given', () => {
     const reload = vi.fn()
-    vi.stubGlobal('location', { ...window.location, reload })
+    vi.stubGlobal('location', { reload })
     act(() => { root.render(<CrashOverlay />) })
     act(() => { host.querySelector('button')!.click() })
     expect(reload).toHaveBeenCalledTimes(1)

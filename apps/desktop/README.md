@@ -120,6 +120,11 @@ The Windows CI workflow (`windows-desktop.yml`) runs against the **packaged exe*
 | 8 | The placeholder manifest poll gave up after 30 s | Backoff polling until the runtime attaches (aborted on unmount) |
 | 9 | Stray compiled artifacts sat untracked in `packages/client/connection/src` | Deleted and gitignored |
 | 10 | `fs.Stats constructor is deprecated` logged on every boot (Electron runtime origin) | Repeated warnings are logged once per message; origin documented below |
+| 11 | Window size / position / maximized state reset on every launch | Geometry persists to `userData/window-state.json` (debounced save), validated against the current display layout — a monitor unplugged mid-session falls back to the OS default position |
+| 12 | Every launch hit the GitHub feed for an update check | Automatic boot checks are throttled to one per 24 h (marker mtime); the manual 检查更新 button always checks |
+| 13 | Production builds kept the default Electron menu, so Ctrl+R reloaded the UI and Ctrl+Shift+I opened DevTools | Menu-less production boots (accelerators gone); `--debug` / `DSH_DESKTOP_DEBUG=1` restores them for diagnostics. Also sets the Windows AppUserModelID so toasts and taskbar grouping identify the app |
+| 14 | Upstream `dsh-llm-deepseek` rc.6/rc.7 clobbered streamed tool-call ids when continuation deltas carried explicit `id: ""` / `id: null` (reported upstream in discussion #3281; empty names were already guarded) | The translate guard now accepts only a non-empty first id, mirroring the name guard — a gateway that serializes empty continuations can no longer turn a tool call into `tool "" is disabled` |
+| 15 | Leftover interactive probe scripts (`probeA/B/C`, `probe-export`, `probe-provider`) sat unreferenced in `scripts/` | Deleted; the CI-wired `ui-matrix` / `stress-test` / `soak-test` remain |
 
 Every fix above landed with its unit/component tests first (TDD), plus the `e2e-window` gate extended to assert the title-bar update entry, the tray new-session flow, and renderer crash recovery. The e2e gate also gained an isolated mode (`DSH_E2E_ISOLATED=1`) so it can run beside a live instance without touching its data.
 
@@ -132,6 +137,8 @@ Every fix above landed with its unit/component tests first (TDD), plus the `e2e-
 - Installers are unsigned until a code-signing certificate is configured (SmartScreen warnings may appear during install and update download).
 - The renderer CSP allows `unsafe-eval` because the vendored Cordis Loader evaluates config expressions; the renderer stays sandboxed and the main process remains the capability boundary.
 - The first launch shows a beta disclaimer ("内测声明") that must be dismissed once; this is intended onboarding, not a defect.
+- **Windows sandbox HTTPS gap (upstream discussion #3207)**: inside `workspace-write` / `read-only` sandbox modes, schannel-based clients (curl.exe, PowerShell `Invoke-WebRequest`, .NET HttpClient) fail TLS with `SEC_E_NO_CREDENTIALS` — the restricted token strips the certificate-store access those clients need. OpenSSL-based runtimes (Node `fetch`, Python) are unaffected, so built-in web/search tools work. Workarounds: prefer Node/Python tooling inside confined sessions, or run the failing command under `danger-full-access`.
+- **One session, one process (upstream discussion #3099)**: session logs are single-writer per process; running a second harness process (e.g. the CLI) against the same `DSH_HOME` while the desktop still holds a live session can interleave appends and corrupt that session's log (unloadable afterwards). Don't operate the same session from two processes at once.
 
 ---
 
@@ -139,7 +146,7 @@ Every fix above landed with its unit/component tests first (TDD), plus the `e2e-
 
 See [release-testing-plan.md](release-testing-plan.md) for the full engineering plan. Short version:
 
-- **Product basics** — window-state memory (update entry, log rotation, and crash visibility shipped in the 2026-08 batch)
+- **Product basics** — shipped in the 2026-08 batch: window-state memory, update entry + 24 h check throttle, log rotation, crash visibility, menu-less production boots
 - **Desktop experience** — global hotkey, system notifications, theme-following title bar, richer tray
 - **Platform capabilities** — `dsh://` deep links, file drag-and-drop, JumpList / taskbar progress, MCP management UI
 - **Release chain** — code signing, GitHub Releases automation, stable/beta channels, differential updates

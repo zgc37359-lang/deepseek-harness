@@ -137,14 +137,14 @@ export async function runPerfProbe(
 ): Promise<PerfProbeResult> {
   if (window.webContents.isLoading()) {
     await new Promise<void>((resolve) => {
-      window.webContents.once('did-finish-load', () => resolve())
+      window.webContents.once('did-finish-load', () => { resolve() })
     })
   }
   const deltas = await measureEventLoopDrift({
     intervalMs,
     durationMs,
     schedule: (callback, delayMs) => setTimeout(callback, delayMs),
-    cancel: handle => clearTimeout(handle as NodeJS.Timeout),
+    cancel: (handle) => { clearTimeout(handle as NodeJS.Timeout) },
     now: () => performance.now(),
   })
   const fps = await measureRendererFps(window, durationMs)

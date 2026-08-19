@@ -120,6 +120,11 @@ Windows CI 工作流（`windows-desktop.yml`）全部针对**打包后的 exe** 
 | 8 | 占位页 manifest 轮询 30 秒后放弃 | 指数退避持续轮询直到运行时挂载（组件卸载时中止） |
 | 9 | `packages/client/connection/src` 残留未跟踪的编译产物 | 已删除并加入 .gitignore |
 | 10 | 每次启动都记录 `fs.Stats constructor is deprecated`（Electron 运行时来源） | 同类警告每条只记一次；来源记录于下方 |
+| 11 | 每次启动窗口尺寸/位置/最大化状态都重置 | 几何状态持久化到 `userData/window-state.json`（防抖保存），并按当前显示器布局校验——中途拔掉显示器时回退到系统默认位置 |
+| 12 | 每次启动都访问 GitHub 更新源检查更新 | 启动自动检查限流为每 24 小时一次（marker mtime）；手动「检查更新」按钮始终立即检查 |
+| 13 | 生产构建保留了 Electron 默认菜单，Ctrl+R 会刷新界面、Ctrl+Shift+I 能打开 DevTools | 生产环境无菜单启动（加速键全部移除）；`--debug` / `DSH_DESKTOP_DEBUG=1` 可恢复用于诊断。同时设置 Windows AppUserModelID，让通知与任务栏分组正确识别应用 |
+| 14 | 上游 `dsh-llm-deepseek` rc.6/rc.7 在 continuation delta 显式携带 `id: ""` / `id: null` 时会覆盖流式工具调用 id（上游讨论 #3281 报告；空 name 此前已加防护） | translate 守卫现在只接受首个非空 id，与 name 守卫对称——会把工具调用变成 `tool "" is disabled` 的网关序列化方式不再生效 |
+| 15 | `scripts/` 里残留无人引用的交互探测脚本（`probeA/B/C`、`probe-export`、`probe-provider`） | 已删除；接入 CI 的 `ui-matrix` / `stress-test` / `soak-test` 保留 |
 
 以上每项修复均以 TDD（先测试后实现）落地，并扩展了 `e2e-window` 门禁：断言标题栏更新入口、托盘新建会话流程、渲染崩溃恢复；e2e 还新增隔离模式（`DSH_E2E_ISOLATED=1`），可在实例运行中旁路测试且不触碰其数据。
 
@@ -132,6 +137,8 @@ Windows CI 工作流（`windows-desktop.yml`）全部针对**打包后的 exe** 
 - 配置代码签名证书前安装包未签名（安装与更新下载时可能出现 SmartScreen 警告）。
 - 渲染层 CSP 允许 `unsafe-eval`（vendored Cordis Loader 需要求值配置表达式）；渲染层保持沙箱，主进程仍是能力边界。
 - 首次启动会展示一次「内测声明」弹层（点「继续」关闭）；这是有意的引导行为，不是缺陷。
+- **Windows 沙箱 HTTPS 缺口（上游讨论 #3207）**：`workspace-write` / `read-only` 沙箱模式下，基于 schannel 的客户端（curl.exe、PowerShell `Invoke-WebRequest`、.NET HttpClient）TLS 握手失败并报 `SEC_E_NO_CREDENTIALS`——受限令牌剥夺了这些客户端所需的证书存储访问。基于 OpenSSL 的运行时（Node `fetch`、Python）不受影响，内置 web/search 工具因此可用。规避：受限会话内优先使用 Node/Python 工具，或对失败命令使用 `danger-full-access`。
+- **一个会话只能由一个进程操作（上游讨论 #3099）**：会话日志按进程单写者；桌面端仍持有某会话时再用第二个 harness 进程（如 CLI）操作同一 `DSH_HOME` 会交错追加并损坏该会话日志（之后无法加载）。不要同时用两个进程操作同一会话。
 
 ---
 
@@ -139,7 +146,7 @@ Windows CI 工作流（`windows-desktop.yml`）全部针对**打包后的 exe** 
 
 完整工程计划见 [release-testing-plan.md](release-testing-plan.md)。简版：
 
-- **产品基本盘** — 窗口状态记忆（可见更新入口、日志轮转、崩溃可见性已在 2026-08 批次交付）
+- **产品基本盘** — 已在 2026-08 批次交付：窗口状态记忆、更新入口 + 24 小时检查限流、日志轮转、崩溃可见性、生产无菜单启动
 - **桌面体验** — 全局快捷键、系统通知、标题栏跟随主题、更丰富的托盘
 - **平台能力** — `dsh://` 深链、文件拖放、JumpList / 任务栏进度、MCP 管理界面
 - **发布链路** — 代码签名、GitHub Releases 自动化、stable/beta 渠道、差分更新

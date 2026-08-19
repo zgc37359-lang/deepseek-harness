@@ -28,21 +28,23 @@ function fakeWebContents() {
 function fakeHost() {
   let frameListener: ((stream: 'mux' | 'host', envelope: unknown) => void) | undefined
   let endListener: ((stream: 'mux' | 'host') => void) | undefined
-  const host: DesktopRuntimeHost = {
-    unary: vi.fn(async () => ({ status: 200, body: '{}' })),
-    getBootManifest: () => ({ rev: 1, entries: [] }),
-    getBundle: vi.fn(async (id: string) => Buffer.from(`bundle:${id}`)),
-    onFrame: vi.fn((listener) => {
-      frameListener = listener
-      return () => { frameListener = undefined }
-    }),
-    onEnd: vi.fn((listener) => {
-      endListener = listener
-      return () => { endListener = undefined }
-    }),
-  }
+  const unary = vi.fn(async () => ({ status: 200, body: '{}' }))
+  const getBootManifest = (): { rev: number; entries: unknown[] } => ({ rev: 1, entries: [] })
+  const getBundle = vi.fn(async (id: string) => Buffer.from('bundle:' + id))
+  const onFrame = vi.fn((listener: (stream: 'mux' | 'host', envelope: unknown) => void) => {
+    frameListener = listener
+    return () => { frameListener = undefined }
+  })
+  const onEnd = vi.fn((listener: (stream: 'mux' | 'host') => void) => {
+    endListener = listener
+    return () => { endListener = undefined }
+  })
+  const host: DesktopRuntimeHost = { unary, getBootManifest, getBundle, onFrame, onEnd }
   return {
     host,
+    unary,
+    getBundle,
+    onFrame,
     fireFrame: (stream: 'mux' | 'host', envelope: unknown) => { frameListener?.(stream, envelope) },
     fireEnd: (stream: 'mux' | 'host') => { endListener?.(stream) },
   }
@@ -54,14 +56,14 @@ describe('desktop-runtime', () => {
   })
 
   it('routes unary to the attached host and answers 503 without one', async () => {
-    const { host } = fakeHost()
+    const { host, unary } = fakeHost()
     const unavailable = await runtimeUnary('session.list', '{}')
     expect(unavailable.status).toBe(503)
 
     attachDesktopRuntime(host)
     const result = await runtimeUnary('session.list', '{}')
     expect(result).toEqual({ status: 200, body: '{}' })
-    expect(host.unary).toHaveBeenCalledWith('session.list', '{}')
+    expect(unary).toHaveBeenCalledWith('session.list', '{}')
   })
 
   it('serves the boot manifest and bundles from the attached host', async () => {
@@ -143,7 +145,7 @@ describe('desktop-runtime', () => {
     registerRuntimeSubscription(sub.webContents, 'mux')
     second.fireFrame('mux', { type: 'server-request', rpcId: '3' })
     expect(sub.sent).toHaveLength(1)
-    expect(first.host.onFrame).toHaveBeenCalledTimes(1)
-    expect(second.host.onFrame).toHaveBeenCalledTimes(1)
+    expect(first.onFrame).toHaveBeenCalledTimes(1)
+    expect(second.onFrame).toHaveBeenCalledTimes(1)
   })
 })

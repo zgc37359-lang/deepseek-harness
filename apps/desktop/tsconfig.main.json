@@ -18,6 +18,8 @@
     "src/bundle-request.ts",
     "src/pty-probe.ts",
     "src/update.ts",
+    "src/update-throttle.ts",
+    "src/window-state.ts",
     "src/bench-stream.ts",
     "src/perf-test.ts",
     "src/shared"

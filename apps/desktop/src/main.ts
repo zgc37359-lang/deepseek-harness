@@ -53,11 +53,18 @@ import { writeBase64Stream } from './download.ts'
 import { appendLogLine, DEFAULT_LOG_KEEP, DEFAULT_LOG_MAX_BYTES } from './main-log.ts'
 import { MAX_RELOAD_AFTER_CRASH, shouldRecoverReload } from './crash-policy.ts'
 import { matchBundleRequest } from './bundle-request.ts'
+import {
+  clampWindowState,
+  loadWindowState,
+  saveWindowState,
+  type WindowState,
+} from './window-state.ts'
 // electron-updater declares `autoUpdater` as a getter on its CJS exports, which
 // Node's ESM named-export interop cannot statically detect; the default import
 // (module.exports) always carries it.
 import electronUpdater from 'electron-updater'
 import { createUpdateController, type UpdateController } from './update.ts'
+import { markUpdateChecked, updateCheckDue } from './update-throttle.ts'
 import type { UpdateStatus } from './shared/ipc.ts'
 
 const { autoUpdater } = electronUpdater
@@ -67,7 +74,12 @@ const TRAY_ICON_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAA
 
 const MIN_WINDOW_WIDTH = 800
 const MIN_WINDOW_HEIGHT = 560
+const WINDOW_STATE_SAVE_DELAY_MS = 500
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 const SMOKE_TEST = process.argv.includes('--smoke-test')
+// Keep the default Electron menu (and its reload/devtools accelerators) only
+// when an explicit debug flag is present; production boots menu-less.
+const DEBUG_MODE = process.argv.includes('--debug') || process.env.DSH_DESKTOP_DEBUG === '1'
 const PTY_PROBE = process.argv.includes('--pty-probe')
 const BENCH_STREAM = process.argv.includes('--bench-stream')
 const PERF_TEST = process.argv.includes('--perf-test')
@@ -87,6 +99,8 @@ let smokeTimer: NodeJS.Timeout | undefined
 let runtimeReady = false
 let shuttingDown = false
 let updateController: UpdateController | null = null
+let windowState: WindowState | undefined
+let windowStateTimer: NodeJS.Timeout | null = null
 
 /** The task text following `--bench-stream`, or an empty string when absent. */
 function benchStreamTask(): string {
@@ -135,8 +149,14 @@ protocol.registerSchemesAsPrivileged([
 // diagnostics bundle; nothing is uploaded.
 crashReporter.start({ uploadToServer: false, compress: true })
 
+// Windows toast/taskbar identity; without it notifications come from
+// "Electron" and taskbar grouping uses the executable path.
+app.setAppUserModelId('com.deepseek-ai.dsh-desktop')
+
 const userDataDir = app.getPath('userData')
 const logFile = join(userDataDir, 'logs', 'main.log')
+const windowStateFile = join(userDataDir, 'window-state.json')
+const updateCheckFile = join(userDataDir, 'update-last-check.txt')
 
 /** Parse a positive integer environment override, falling back when unset. */
 function positiveEnv(name: string, fallback: number): number {
@@ -195,11 +215,36 @@ function sendUpdateStatus(status: UpdateStatus): void {
   mainWindow?.webContents.send(IPC.updatesStatus, status)
 }
 
+/** Save the current window bounds and maximized flag for the next launch. */
+async function persistWindowState(): Promise<void> {
+  const win = mainWindow
+  if (win === null) return
+  const bounds = win.getBounds()
+  await saveWindowState(windowStateFile, { ...bounds, maximized: win.isMaximized() })
+}
+
+/** Debounce geometry persistence across resize/move/maximize events. */
+function scheduleWindowStateSave(): void {
+  if (windowStateTimer !== null) clearTimeout(windowStateTimer)
+  windowStateTimer = setTimeout(() => { void persistWindowState() }, WINDOW_STATE_SAVE_DELAY_MS)
+}
+
 /** Create the frameless main window with the sandboxed renderer. */
 function createMainWindow(): void {
+  const bounds = clampWindowState(
+    windowState,
+    screen.getAllDisplays().map(display => ({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+    })),
+    MIN_WINDOW_WIDTH,
+    MIN_WINDOW_HEIGHT,
+  )
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: bounds.width,
+    height: bounds.height,
     minWidth: MIN_WINDOW_WIDTH,
     minHeight: MIN_WINDOW_HEIGHT,
     frame: false,
@@ -213,17 +258,28 @@ function createMainWindow(): void {
     },
   })
   mainWindow = win
+  if (bounds.x !== undefined && bounds.y !== undefined) win.setPosition(bounds.x, bounds.y)
+  if (bounds.maximized) win.maximize()
 
   win.once('ready-to-show', () => {
     if (!SMOKE_TEST) win.show()
   })
-  win.on('maximize', () => { win.webContents.send(IPC.windowMaximizedChanged, true) })
-  win.on('unmaximize', () => { win.webContents.send(IPC.windowMaximizedChanged, false) })
+  win.on('maximize', () => {
+    win.webContents.send(IPC.windowMaximizedChanged, true)
+    scheduleWindowStateSave()
+  })
+  win.on('unmaximize', () => {
+    win.webContents.send(IPC.windowMaximizedChanged, false)
+    scheduleWindowStateSave()
+  })
+  win.on('resize', scheduleWindowStateSave)
+  win.on('move', scheduleWindowStateSave)
   win.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault()
       win.hide()
     }
+    void persistWindowState()
   })
   win.on('blur', stopWindowDrag)
   win.on('closed', () => {
@@ -483,7 +539,9 @@ function createTray(): void {
 }
 
 /** Boot the desktop shell after Electron is ready. */
-function bootstrap(): void {
+async function bootstrap(): Promise<void> {
+  if (!DEBUG_MODE) Menu.setApplicationMenu(null)
+  windowState = await loadWindowState(windowStateFile)
   if (PTY_PROBE) {
     void runPtyProbe().then((result) => {
       console.log(result.ok ? 'DESKTOP_PTY_OK' : `DESKTOP_PTY_FAIL: ${result.error ?? ''}`)
@@ -546,7 +604,13 @@ function bootstrap(): void {
     }
     updateController = createUpdateController(autoUpdater, sendUpdateStatus)
     sendUpdateStatus(updateController.status())
-    updateController.check()
+    // Boot-time automatic checks are throttled to one per day; the manual
+    // "检查更新" button bypasses the gate through the updatesCheck IPC.
+    void updateCheckDue(updateCheckFile, UPDATE_CHECK_INTERVAL_MS).then((due) => {
+      if (!due) return
+      void markUpdateChecked(updateCheckFile)
+      updateController?.check()
+    })
   }
   void bootDesktopRuntime().then(() => {
     runtimeReady = true

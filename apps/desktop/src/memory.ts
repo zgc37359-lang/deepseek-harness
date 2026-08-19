@@ -83,7 +83,7 @@ export function collectMemorySample(): MemorySample {
       heapUsedMiB: roundMiB(usage.heapUsed),
       heapTotalMiB: roundMiB(usage.heapTotal),
       externalMiB: roundMiB(usage.external),
-      arrayBuffersMiB: roundMiB(usage.arrayBuffers ?? 0),
+      arrayBuffersMiB: roundMiB(usage.arrayBuffers),
     },
     processes,
   }
