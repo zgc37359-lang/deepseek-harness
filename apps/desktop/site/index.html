@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Harness Desktop 鈥?鏈湴鐨?AI 鍔╂墜锛岃瀹屽嵆鐢?/title>
-<meta name="description" content="鎶?DeepSeek AI 鍔╂墜瑁呰繘鑷繁鐨勭數鑴戯細鏈湴杩愯銆佹暟鎹笉鍑虹數鑴戙€佹棤闇€浠讳綍鐜銆佸厤璐瑰紑婧愭寔缁洿鏂般€? />
+<title>Harness Desktop — 本地的 AI 助手，装完即用</title>
+<meta name="description" content="把 DeepSeek AI 助手装进自己的电脑：本地运行、数据不出电脑、无需任何环境、免费开源持续更新。" />
 <meta name="theme-color" content="#0f1115" />
 <link rel="icon" type="image/png" href="favicon.png" />
 <style>
@@ -34,7 +34,7 @@
   code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.88em; background: var(--bg-card); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; color: #b9c6e8; }
   .wrap { max-width: 980px; margin: 0 auto; padding: 0 28px; }
 
-  /* 瀵艰埅 */
+  /* 导航 */
   nav { border-bottom: 1px solid var(--border); position: sticky; top: 0; background: rgba(15,17,21,0.88); backdrop-filter: blur(10px); z-index: 20; }
   nav .inner { max-width: 980px; margin: 0 auto; padding: 13px 28px; display: flex; align-items: center; justify-content: space-between; }
   nav .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--text); }
@@ -63,10 +63,10 @@
   .btn-ghost { border: 1px solid var(--border); color: var(--text); }
   .btn-ghost:hover { border-color: var(--text-3); text-decoration: none; }
   .meta { margin-top: 20px; font-size: 13.5px; color: var(--text-3); }
-  .meta span + span::before { content: "路"; margin: 0 9px; color: var(--border); }
+  .meta span + span::before { content: "·"; margin: 0 9px; color: var(--border); }
   .meta code { background: none; border: none; padding: 0; }
 
-  /* 鍗栫偣 */
+  /* 卖点 */
   .points { border-top: 1px solid var(--border); }
   .points .grid { max-width: 980px; margin: 0 auto; padding: 64px 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
   .card {
@@ -84,7 +84,7 @@
   .card h3 { margin-top: 18px; font-size: 18px; font-weight: 650; }
   .card p { margin-top: 8px; font-size: 14.5px; color: var(--text-2); }
 
-  /* 鎴浘锛堢獥鍙ｆ鏋讹級 */
+  /* 截图（窗口框架） */
   .shots { border-top: 1px solid var(--border); background: var(--bg-soft); }
   .shots .inner { max-width: 980px; margin: 0 auto; padding: 68px 28px; }
   .shots .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -104,7 +104,7 @@
   .window img { width: 100%; display: block; }
   .shots figcaption { margin-top: 12px; font-size: 13px; color: var(--text-3); text-align: center; }
 
-  /* 鐗规€х粏鑺?*/
+  /* 特性细节 */
   .detail { max-width: 980px; margin: 0 auto; padding: 56px 28px 8px; }
   .detail h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
   .detail .lead { margin-top: 6px; font-size: 14.5px; color: var(--text-3); }
@@ -114,7 +114,7 @@
   .detail .name { flex: 0 0 170px; color: var(--text); font-weight: 600; font-size: 14.5px; }
   .detail .desc { color: var(--text-2); font-size: 14.5px; }
 
-  /* 瀹夎 */
+  /* 安装 */
   .install { max-width: 980px; margin: 0 auto; padding: 56px 28px 72px; }
   .install h2 { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
   .install .steps { margin-top: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -158,36 +158,36 @@
 
 <header class="hero">
   <img class="logo" src="logo.png" alt="Harness Desktop" />
-  <h1>鏈湴鐨?AI 鍔╂墜锛?span class="accent">瑁呭畬鍗崇敤</span></h1>
-  <p class="sub">鎶?DeepSeek AI 瑁呰繘鑷繁鐨?Windows 鐢佃剳銆傛暟鎹笉鍑烘満鍣紝鐜涓嶇敤閰嶏紝閲嶈鎿嶄綔鍏堥棶浣犮€?/p>
+  <h1>本地的 AI 助手，<span class="accent">装完即用</span></h1>
+  <p class="sub">把 DeepSeek AI 装进自己的 Windows 电脑。数据不出机器，环境不用配，重要操作先问你。</p>
   <div class="actions">
-    <a class="btn btn-primary" href="https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.1-x64.exe">鍏嶈垂涓嬭浇</a>
-    <a class="btn btn-ghost" href="https://github.com/zgc37359-lang/harness-desktop">鏌ョ湅婧愮爜</a>
+    <a class="btn btn-primary" href="https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.1-x64.exe">免费下载</a>
+    <a class="btn btn-ghost" href="https://github.com/zgc37359-lang/harness-desktop">查看源码</a>
   </div>
-  <p class="meta"><span><code>v0.1.1</code></span><span>Windows 10/11 x64</span><span>129 MB</span><span>MIT 寮€婧?/span></p>
+  <p class="meta"><span><code>v0.1.1</code></span><span>Windows 10/11 x64</span><span>129 MB</span><span>MIT 开源</span></p>
 </header>
 
 <section class="points">
   <div class="grid">
     <div class="card">
       <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 6v6c0 5.2 3.4 8.7 8 10 4.6-1.3 8-4.8 8-10V6l-8-3.5z"/><rect x="9.4" y="10.4" width="5.2" height="4.2" rx="1.2"/><path d="M12 11.2v1.6"/></svg></div>
-      <h3>鏁版嵁涓嶅嚭鐢佃剳</h3>
-      <p>娌℃湁鏈嶅姟鍣ㄣ€佹病鏈変簯绔€佹病鏈夊洖浼犮€傚璇濄€佹枃浠躲€佽褰曞叏閮ㄧ暀鍦ㄦ湰鏈恒€?/p>
+      <h3>数据不出电脑</h3>
+      <p>没有服务器、没有云端、没有回传。对话、文件、记录全部留在本机。</p>
     </div>
     <div class="card">
       <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8.2 12 3 3 8.2v7.6L12 21l9-5.2V8.2z"/><path d="M3.3 8.4 12 13.4l8.7-5"/><path d="M12 13.4V21"/></svg></div>
-      <h3>瑁呭畬鍗崇敤锛岄浂鐜</h3>
-      <p>涓嶉渶瑕?Node.js銆丳ython 鎴栦换浣曡繍琛屾椂銆備竴涓?129 MB 瀹夎鍖咃紝鍙屽嚮鍗崇敤銆?/p>
+      <h3>装完即用，零环境</h3>
+      <p>不需要 Node.js、Python 或任何运行时。一个 129 MB 安装包，双击即用。</p>
     </div>
     <div class="card">
       <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 11 23l-8-8L13 3h7.6v7.6z"/><circle cx="17" cy="7" r="1.6"/></svg></div>
-      <h3>鍏嶈垂锛屼笖鎸佺画鏇存柊</h3>
-      <p>MIT 寮€婧愶紝鏃犺闃呫€佹棤鍐呰喘銆傛柊鍔熻兘闅忕増鏈畾鏈熷彂甯冿紝鑷姩鏇存柊鎻愰啋銆?/p>
+      <h3>免费，且持续更新</h3>
+      <p>MIT 开源，无订阅、无内购。新功能随版本定期发布，自动更新提醒。</p>
     </div>
     <div class="card">
       <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-8.5 8.5H4.5l1.8-2.7A8.5 8.5 0 1 1 21 12z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/></svg></div>
-      <h3>閲嶈鎿嶄綔鍏堥棶浣?/h3>
-      <p>鍒犳枃浠躲€佽窇鍛戒护銆佸姩绯荤粺鍓嶅厛寰佹眰鍚屾剰锛屾潈闄愭寜宸ヤ綔鍖虹鐞嗐€侀殢鏃跺彲鎾ら攢銆?/p>
+      <h3>重要操作先问你</h3>
+      <p>删文件、跑命令、动系统前先征求同意，权限按工作区管理、随时可撤销。</p>
     </div>
   </div>
 </section>
@@ -196,66 +196,66 @@
   <div class="inner">
     <div class="grid">
       <figure class="window">
-        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">瀵硅瘽</span></div>
-        <img src="screenshot-chat.png" alt="瀵硅瘽鐣岄潰" />
+        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">对话</span></div>
+        <img src="screenshot-chat.png" alt="对话界面" />
       </figure>
       <figure class="window">
-        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">涓荤晫闈?/span></div>
-        <img src="screenshot-main.png" alt="涓荤晫闈? />
+        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">主界面</span></div>
+        <img src="screenshot-main.png" alt="主界面" />
       </figure>
       <figure class="window">
-        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">璁剧疆</span></div>
-        <img src="screenshot-settings.png" alt="璁剧疆鐣岄潰" />
+        <div class="titlebar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="name">设置</span></div>
+        <img src="screenshot-settings.png" alt="设置界面" />
       </figure>
     </div>
-    <p style="text-align:center;margin-top:22px;font-size:13px;color:var(--text-3)">鎵撳寘鐗堝簲鐢ㄥ疄鎷?路 鏃犺竟妗嗙獥鍙?路 娣辫壊鐣岄潰</p>
+    <p style="text-align:center;margin-top:22px;font-size:13px;color:var(--text-3)">打包版应用实拍 · 无边框窗口 · 深色界面</p>
   </div>
 </section>
 
 <div class="wrap">
   <section class="detail">
-    <h2>闈㈠悜寮€鍙戣€?/h2>
-    <p class="lead">瀹屾暣 Harness 鎻掍欢鏋舵瀯锛岃繘绋嬪唴杩愯</p>
+    <h2>面向开发者</h2>
+    <p class="lead">完整 Harness 插件架构，进程内运行</p>
     <ul>
-      <li><span class="name">杩涚▼鍐呰繍琛屾椂</span><span class="desc">瀹屾暣鎻掍欢鏍戝湪涓昏繘绋嬪唴锛?code>闆剁鍙?/code>銆?code>闆剁綉缁滅洃鍚?/code>锛岀晫闈㈣蛋鐧藉悕鍗?IPC 妗ャ€?/span></li>
-      <li><span class="name">PowerShell 鎵ц鍗忚</span><span class="desc">Agent 鍐呯疆 Windows PowerShell 5.1 瑙勮寖锛?code>-LiteralPath</code>銆?code>Get-Command</code> 鍏堟煡鍙傛暟銆?code>-WhatIf</code> 鍏堥獙璇併€?/span></li>
-      <li><span class="name">鍔犲浐娓叉煋灞?/span><span class="desc"><code>sandbox</code> + <code>contextIsolation</code>锛岀櫧鍚嶅崟 preload锛屼富杩涚▼涓哄敮涓€鑳藉姏杈圭晫銆?/span></li>
-      <li><span class="name">鑷姩鏇存柊</span><span class="desc">electron-updater 鎺ュ叆 GitHub Releases锛屾爣棰樻爮甯搁┗妫€鏌ュ叆鍙ｏ紝闈欓粯涓嬭浇銆?/span></li>
-      <li><span class="name">鎸佷箙鍖栨巿鏉?/span><span class="desc">鎸夊伐浣滃尯绠＄悊宸ュ叿鏉冮檺锛屽彲鎾ら攢锛屽鎵硅褰曟竻鏅板彲鏌ャ€?/span></li>
-      <li><span class="name">璇婃柇瀵煎嚭</span><span class="desc">涓€閿鍑轰富鏃ュ織涓庣幆澧冨揩鐓э紝闂鍙嶉涓嶇敤鏉ュ洖鎷夋壇銆?/span></li>
+      <li><span class="name">进程内运行时</span><span class="desc">完整插件树在主进程内，<code>零端口</code>、<code>零网络监听</code>，界面走白名单 IPC 桥。</span></li>
+      <li><span class="name">PowerShell 执行协议</span><span class="desc">Agent 内置 Windows PowerShell 5.1 规范：<code>-LiteralPath</code>、<code>Get-Command</code> 先查参数、<code>-WhatIf</code> 先验证。</span></li>
+      <li><span class="name">加固渲染层</span><span class="desc"><code>sandbox</code> + <code>contextIsolation</code>，白名单 preload，主进程为唯一能力边界。</span></li>
+      <li><span class="name">自动更新</span><span class="desc">electron-updater 接入 GitHub Releases，标题栏常驻检查入口，静默下载。</span></li>
+      <li><span class="name">持久化授权</span><span class="desc">按工作区管理工具权限，可撤销，审批记录清晰可查。</span></li>
+      <li><span class="name">诊断导出</span><span class="desc">一键导出主日志与环境快照，问题反馈不用来回拉扯。</span></li>
     </ul>
   </section>
 
   <section class="install">
-    <h2>瀹夎</h2>
+    <h2>安装</h2>
     <div class="steps">
       <div class="step">
         <div class="num">01</div>
-        <h3>涓嬭浇</h3>
-        <p>鐐瑰嚮涓婃柟鎸夐挳锛岃幏鍙?<code>dsh-desktop-0.1.1-x64.exe</code>锛?29 MB锛夈€?/p>
+        <h3>下载</h3>
+        <p>点击上方按钮，获取 <code>dsh-desktop-0.1.1-x64.exe</code>（129 MB）。</p>
       </div>
       <div class="step">
         <div class="num">02</div>
-        <h3>瀹夎</h3>
-        <p>鍙屽嚮杩愯銆侼SIS 姣忕敤鎴峰畨瑁咃紝<code>鏃犻渶绠＄悊鍛樻潈闄?/code>銆?/p>
+        <h3>安装</h3>
+        <p>双击运行。NSIS 每用户安装，<code>无需管理员权限</code>。</p>
       </div>
       <div class="step">
         <div class="num">03</div>
-        <h3>鍚姩</h3>
-        <p>浠庡紑濮嬭彍鍗曟垨妗岄潰鍥炬爣鎵撳紑锛岀洿鎺ュ紑濮嬪璇濄€?/p>
+        <h3>启动</h3>
+        <p>从开始菜单或桌面图标打开，直接开始对话。</p>
       </div>
     </div>
     <div class="term">
-      <span class="prompt">PS&gt;</span> <span class="dim"># 涓嬭浇鍚?/span><br/>
-      <span class="prompt">PS&gt;</span> .dsh-desktop-0.1.1-x64.exe <span class="dim"># 鍙屽嚮瀹夎锛屼袱鍒嗛挓涓婃墜</span>
+      <span class="prompt">PS&gt;</span> <span class="dim"># 下载后</span><br/>
+      <span class="prompt">PS&gt;</span> .dsh-desktop-0.1.1-x64.exe <span class="dim"># 双击安装，两分钟上手</span>
     </div>
   </section>
 </div>
 
 <footer>
   <div class="inner">
-    <span>漏 2026 Harness Desktop 路 MIT License 路 鍩轰簬 <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></span>
-    <span><a href="https://github.com/zgc37359-lang/harness-desktop">GitHub</a> 路 鐢辩嫭绔嬪紑鍙戣€呯淮鎶?/span>
+    <span>© 2026 Harness Desktop · MIT License · 基于 <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a></span>
+    <span><a href="https://github.com/zgc37359-lang/harness-desktop">GitHub</a> · 由独立开发者维护</span>
   </div>
 </footer>
 
