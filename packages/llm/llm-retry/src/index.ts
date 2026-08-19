@@ -9,7 +9,8 @@ import { randomUUID } from 'node:crypto'
 import type { Context, Events } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent, RequestErrorAction } from '@deepseek-ai/dsh-agent'
-import type { LlmFailure, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
+import { EMPTY_RESPONSE_CODE } from '@deepseek-ai/dsh-llm'
+import type { LlmCallConfig, LlmFailure, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { RetryId } from './brand.ts'
 import type { LlmRetryEventData } from './types.ts'
@@ -101,6 +102,31 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
   const random = internals.random ?? Math.random
   const lifetime = new AbortController()
   const active = new Set<Promise<RequestErrorAction>>()
+
+  /**
+   * Per-agent steps that retried a truncated empty response (the provider
+   * billed output tokens but streamed no content, typically a thinking-mode
+   * cut-off). The next request for that step drops reasoning effort so the
+   * retry does not repeat the same truncated generation. Keyed by agent id,
+   * value is the set of "turn:step" markers; cleared on the first successful
+   * assistant message for the agent.
+   */
+  const degraded = new Map<string, Set<string>>()
+
+  function markDegraded(agent: Agent, turn: number, step: number): void {
+    let markers = degraded.get(agent.id)
+    if (markers === undefined) {
+      markers = new Set()
+      degraded.set(agent.id, markers)
+    }
+    markers.add(String(turn) + ':' + String(step))
+  }
+
+  function isTruncatedEmpty(failure: LlmFailure): boolean {
+    return failure.code === EMPTY_RESPONSE_CODE
+      && failure.outputTokens !== undefined
+      && failure.outputTokens > 0
+  }
 
   function track(operation: Promise<RequestErrorAction>): Promise<RequestErrorAction> {
     const tracked = operation.finally(() => active.delete(tracked))
@@ -204,6 +230,10 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
       delayMs = localDelay(policy, retry, random)
     }
 
+    // A truncated empty response retries with the same request parameters
+    // in vain (the provider cut the generation off mid-thinking); mark the
+    // step so the retry's request drops reasoning effort.
+    if (isTruncatedEmpty(failure)) markDegraded(agent, turn, step)
     return backoff(agent, turn, step, failure, provider, policy, policyKey, retry, retryId, delayMs, signal)
   }
 
@@ -216,6 +246,29 @@ export function apply(ctx: Context, config: Config = {}, internals: RetryInterna
     // entering a downstream policy after disposal.
     if (lifetime.signal.aborted) return Promise.resolve<RequestErrorAction>(undefined)
     return track(recover(payload, next))
+  })
+
+  // Degrade the retried step's request: when a step is marked for a truncated
+  // empty response, drop reasoning effort so the retry does not reproduce the
+  // same thinking-mode cut-off. The 'off' effort is part of the vocabulary of
+  // adapters that expose thinking at all (deepseek declares it in its model
+  // catalog); a truncation only occurs under thinking mode, so the marker and
+  // the injection stay paired. Non-marked requests pass through untouched.
+  ctx.on('agent/request', async ({ agent, turn, step }, next) => {
+    const markers = degraded.get(agent.id)
+    if (markers === undefined || !markers.has(String(turn) + ':' + String(step))) return next()
+    const base = await next()
+    return { ...base, reasoningEffort: 'off' } as LlmCallConfig
+  })
+
+  // A successful assistant message means the step (and any earlier degraded
+  // step in this turn) settled; clear the agent's markers so later steps and
+  // turns request with their normal configuration again.
+  ctx.on('session/event', (session, event) => {
+    if (event.type !== 'assistant/message') return
+    if (degraded.delete(session.id)) {
+      ctx.logger.debug('llm-retry: cleared thinking-degradation markers for session ' + session.id)
+    }
   })
 
   ctx.effect(() => async () => {

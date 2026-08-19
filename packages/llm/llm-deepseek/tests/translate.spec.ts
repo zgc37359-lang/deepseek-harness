@@ -293,6 +293,7 @@ describe('translate: finish and usage handling', () => {
         failure: {
           message: 'model response was truncated after 34 output tokens with no content (thinking may have been cut off)',
           code: EMPTY_RESPONSE_CODE,
+          outputTokens: 34,
         },
       },
     })

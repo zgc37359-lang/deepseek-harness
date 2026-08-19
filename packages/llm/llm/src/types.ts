@@ -48,6 +48,12 @@ export interface LlmFailure {
   readonly providerRetryAfterMs?: number
   /** Opaque provider-issued request identifier for diagnostics. */
   readonly requestId?: ProviderRequestId
+  /**
+   * Billed output tokens when the provider reported usage but streamed no
+   * content (e.g. a truncated empty response); lets retry logic distinguish
+   * a genuinely empty completion from one cut off mid-generation.
+   */
+  readonly outputTokens?: number
 }
 
 /** Plain text visible to the end user. */

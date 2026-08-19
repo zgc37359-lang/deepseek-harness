@@ -188,11 +188,13 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
             // The provider billed output tokens but streamed no content: the
             // response was cut off mid-generation (thinking mode is the usual
             // suspect), which reads very differently from a genuinely empty
-            // completion on the user side.
+            // completion on the user side. The structured outputTokens field
+            // lets retry logic detect the truncation without parsing text.
             message: tokens !== undefined && tokens > 0
               ? 'model response was truncated after ' + String(tokens) + ' output tokens with no content (thinking may have been cut off)'
               : 'model returned a completed response with no content',
             code: EMPTY_RESPONSE_CODE,
+            ...tokens !== undefined && tokens > 0 ? { outputTokens: tokens } : {},
           },
         }
       }

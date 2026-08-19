@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
-import LlmRuntime, { createUserMessage, CallId, EMPTY_RESPONSE_CODE, LlmAdapter, LlmError, resolveRetryPolicy  } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, CallId, EMPTY_RESPONSE_CODE, LlmAdapter, LlmError, ReasoningEffortId, resolveRetryPolicy } from '@deepseek-ai/dsh-llm'
 import type {
   AlwaysRetryPolicyConfig,
   BackoffConfig,
@@ -10,6 +10,7 @@ import type {
   ResolvedRetryPolicy,
   RetryPolicyConfig,
   StreamChunk,
+  LlmResolvedModelInfo,
 } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
@@ -41,6 +42,27 @@ class ScriptedAdapter extends LlmAdapter {
     if (entry === undefined) throw new Error('retry test script exhausted')
     if (entry instanceof Error) throw entry
     yield* entry
+  }
+
+  // The mock models accept the same effort vocabulary as the deepseek
+  // adapter, including 'off' — the value thinking-degradation injects.
+  override async resolveModel(
+    provider: string,
+    model: string,
+  ): Promise<LlmResolvedModelInfo> {
+    return {
+      provider,
+      id: model,
+      name: model,
+      reasoning: {
+        efforts: [
+          { id: ReasoningEffortId('off'), name: 'Off' },
+          { id: ReasoningEffortId('low'), name: 'Low' },
+          { id: ReasoningEffortId('high'), name: 'High' },
+          { id: ReasoningEffortId('max'), name: 'Max' },
+        ],
+      },
+    }
   }
 
   configureRetryPolicies(
@@ -93,6 +115,24 @@ function emptyCompletion(): StreamChunk[] {
       reason: {
         kind: 'error',
         failure: { message: 'model returned a completed response with no content', code: EMPTY_RESPONSE_CODE },
+      },
+    },
+  ]
+}
+
+/** A truncated completion: usage bills output tokens but choices stay empty. */
+function truncatedCompletion(outputTokens: number): StreamChunk[] {
+  return [
+    { type: 'usage', usage: { inputTokens: 100, outputTokens } },
+    {
+      type: 'finish',
+      reason: {
+        kind: 'error',
+        failure: {
+          message: 'model response was truncated after ' + String(outputTokens) + ' output tokens with no content (thinking may have been cut off)',
+          code: EMPTY_RESPONSE_CODE,
+          outputTokens,
+        },
       },
     },
   ]
@@ -173,6 +213,80 @@ afterEach(async () => {
 })
 
 describe('provider-routed retry policy', () => {
+  it('degrades thinking (reasoningEffort off) when retrying a truncated empty response', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      truncatedCompletion(34),
+      textResponse('recovered'),
+    ])
+    ;({ ctx: context } = await harness(adapter))
+    const agent = context.agentLoop.create(SessionId('degrade-trunc'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+
+    const scheduled = waitForRetry(context, agent, 1)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await scheduled
+    const idle = waitForIdle(context, agent)
+    await vi.advanceTimersByTimeAsync(500)
+    await idle
+
+    // The retried request must carry the degraded 'off' effort.
+    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests[1]?.reasoningEffort).toBe('off')
+  })
+
+  it('does not degrade when the empty response billed no output tokens', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      emptyCompletion(),
+      textResponse('recovered'),
+    ])
+    ;({ ctx: context } = await harness(adapter))
+    const agent = context.agentLoop.create(SessionId('degrade-empty'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+
+    const scheduled = waitForRetry(context, agent, 1)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await scheduled
+    const idle = waitForIdle(context, agent)
+    await vi.advanceTimersByTimeAsync(500)
+    await idle
+
+    // No output tokens means no truncation: the retry keeps its configuration.
+    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests[1]?.reasoningEffort).toBeUndefined()
+  })
+
+  it('does not degrade non-empty-response failures', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      new LlmError('busy', 'RATE_LIMIT', { status: 429 }),
+      textResponse('recovered'),
+    ])
+    ;({ ctx: context } = await harness(adapter, {
+      mock: normalConfig({ retryableCodes: ['SERVER', 'RATE_LIMIT'] }),
+    }))
+    const agent = context.agentLoop.create(SessionId('degrade-ratelimit'), {
+      provider: 'mock',
+      model: 'mock',
+    })
+
+    const scheduled = waitForRetry(context, agent, 1)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await scheduled
+    const idle = waitForIdle(context, agent)
+    await vi.advanceTimersByTimeAsync(500)
+    await idle
+
+    // Non-empty-response failures never degrade.
+    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests[1]?.reasoningEffort).toBeUndefined()
+  })
+
   it('records the scheduled delay before retrying the request', async () => {
     vi.useFakeTimers()
     const adapter = new ScriptedAdapter([
