@@ -117,4 +117,45 @@ describe('createUpdateController', () => {
 
     expect(emitted).toEqual([{ kind: 'error', message: 'connect ECONNREFUSED 1.2.3.4:443' }])
   })
+
+  it('treats a 404 from releases/latest (no stable release) as not-available', () => {
+    const updater = new FakeUpdater()
+    const emitted: UpdateStatus[] = []
+    createUpdateController(updater, status => emitted.push(status))
+
+    updater.emit('error', new Error('404 Not Found\n\nHeaders: {"server":"github.com","strict-transport-security":"max-age=31536000"}'))
+
+    expect(emitted).toEqual([{ kind: 'not-available' }])
+  })
+
+  it('treats "unable to find latest version" (no production release) as not-available', () => {
+    const updater = new FakeUpdater()
+    const emitted: UpdateStatus[] = []
+    createUpdateController(updater, status => emitted.push(status))
+
+    updater.emit('error', new Error('Unable to find latest version on GitHub (https://github.com/x/y/releases/latest), please ensure a production release exists'))
+
+    expect(emitted).toEqual([{ kind: 'not-available' }])
+  })
+
+  it('treats a missing channel file (latest.yml / latest-rc.yml) as not-available', () => {
+    const updater = new FakeUpdater()
+    const emitted: UpdateStatus[] = []
+    createUpdateController(updater, status => emitted.push(status))
+
+    updater.emit('error', new Error('Cannot find latest-rc.yml in the latest release artifacts (https://github.com/x/y/releases/download/v0.1.0-rc.1/latest-rc.yml)'))
+
+    expect(emitted).toEqual([{ kind: 'not-available' }])
+  })
+
+  it('never surfaces the raw HttpError headers dump to the user', () => {
+    const updater = new FakeUpdater()
+    const emitted: UpdateStatus[] = []
+    createUpdateController(updater, status => emitted.push(status))
+
+    updater.emit('error', new Error('429 Too many requests\n\nHeaders: {"server":"github.com","x-github-request-id":"1:2:3"}'))
+
+    expect(emitted).toEqual([{ kind: 'error', message: '检查更新失败（429 Too many requests），请稍后重试' }])
+    expect(emitted[0].kind === 'error' && emitted[0].message.includes('x-github-request-id')).toBe(false)
+  })
 })
