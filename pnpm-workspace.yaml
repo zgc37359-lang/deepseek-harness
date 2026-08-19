@@ -27,6 +27,8 @@ linkWorkspacePackages: true
 overrides:
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
+  # app-builder-lib 26.15.3 reads ElectronDownloadCacheMode, only exported by @electron/get 5.x.
+  '@electron/get': '5.1.0'
 
 peerDependencyRules:
   allowedVersions:
@@ -39,6 +41,10 @@ peerDependencyRules:
 # (git hooks) genuinely need theirs.
 allowBuilds:
   esbuild: true
+  # Electron's installer downloads the platform binary on install.
+  electron: true
+  # electron-builder's NSIS dependency downloads the Windows toolchain.
+  electron-winstaller: true
   lefthook: true
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.
   node-pty: true

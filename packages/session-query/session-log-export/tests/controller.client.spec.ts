@@ -36,6 +36,46 @@ describe('SessionLogDownloadController', () => {
     })
   })
 
+  it('downloads through the desktop RPC lane when the preload bridge is present', async () => {
+    const unary = vi.fn(async () => ({
+      status: 200,
+      body: JSON.stringify({
+        result: { ok: true, value: { filename: 'dsh-session-x.zip', bytesBase64: 'aGk=' } },
+      }),
+    }))
+    const save = vi.fn(async () => ({ ok: true, path: 'C:/Downloads/dsh-session-x.zip' }))
+    vi.stubGlobal('desktop', { runtime: { unary }, download: { save } })
+    const fetcher = vi.fn()
+    const controller = new SessionLogDownloadController(fetcher, vi.fn())
+
+    await controller.download(SID)
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(unary).toHaveBeenCalledWith('session.exportZip', expect.stringContaining('session.exportZip'))
+    expect(save).toHaveBeenCalledWith('dsh-session-x.zip', 'aGk=')
+    expect(controller.store.getSnapshot().bySession[SID]).toEqual({
+      open: true, status: 'success', error: null, path: 'C:/Downloads/dsh-session-x.zip',
+    })
+  })
+
+  it('publishes desktop RPC failures without falling back to fetch', async () => {
+    const unary = vi.fn(async () => ({
+      status: 200,
+      body: JSON.stringify({
+        result: { ok: false, error: { message: 'boom' } },
+      }),
+    }))
+    vi.stubGlobal('desktop', { runtime: { unary }, download: { save: vi.fn() } })
+    const fetcher = vi.fn()
+    const controller = new SessionLogDownloadController(fetcher, vi.fn())
+
+    await controller.download(SID)
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(controller.store.getSnapshot().bySession[SID]?.status).toBe('error')
+    expect(controller.store.getSnapshot().bySession[SID]?.error).toBe('boom')
+  })
+
   it('collapses concurrent gestures and preserves a dismissed dialog', async () => {
     const response = Promise.withResolvers<Response>()
     const fetcher = vi.fn(() => response.promise)

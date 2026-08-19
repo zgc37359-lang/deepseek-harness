@@ -89,17 +89,25 @@ describe('BlockAssembler properties', () => {
     }))
   })
 
-  it('finish reflects the last finish chunk, or defaults to stop when none arrives', () => {
+  it('finish reflects the last finish chunk, defaults to stop, or reports a nameless tool call as malformed', () => {
     fc.assert(fc.property(streamArb, (chunks) => {
       const a = feed(chunks)
       const finishes = chunks.filter(c => c.type === 'finish')
-      if (finishes.length === 0) {
-        expect(a.finish).toEqual({ kind: 'stop' })
-      } else {
-        // last-write-wins: the assembler keeps the most recent finish reason.
-        const last = finishes[finishes.length - 1]
-        if (last?.type === 'finish') expect(a.finish).toEqual(last.reason)
+      const last = finishes[finishes.length - 1]
+      const explicit = last?.type === 'finish' ? last.reason : undefined
+      // Provider-owned terminal reasons win over the malformed derivation.
+      if (explicit !== undefined
+        && (explicit.kind === 'error' || explicit.kind === 'aborted' || explicit.kind === 'max-tokens')) {
+        expect(a.finish).toEqual(explicit)
+        return
       }
+      // A nameless tool call is a deliberate derivation (pinned by the
+      // focused assembler tests), not a finish-chunk reflection.
+      if (a.finish.kind === 'error' && a.finish.failure.code === 'MALFORMED_RESPONSE') {
+        return
+      }
+      // last-write-wins: the assembler keeps the most recent finish reason.
+      expect(a.finish).toEqual(explicit ?? { kind: 'stop' })
     }))
   })
 })

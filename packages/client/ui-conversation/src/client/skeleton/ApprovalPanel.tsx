@@ -58,9 +58,10 @@ function ApprovalFlow({ pending, command, t }: {
   // lands; until then the buttons must not re-fire. An answer failure
   // (rejected receipt / transport) re-arms them for retry.
   const [answered, setAnswered] = useState(false)
+  const [remember, setRemember] = useState(false)
   const answer = (outcome: 'allowed-once' | 'rejected'): void => {
     setAnswered(true)
-    void pending.answer(outcome).catch(() => { setAnswered(false) })
+    void pending.answer(outcome, remember).catch(() => { setAnswered(false) })
   }
   return (
     <div className={css.root} data-approval-key={pending.key}>
@@ -74,6 +75,15 @@ function ApprovalFlow({ pending, command, t }: {
           {command !== undefined && <div className={css.command}>{command}</div>}
         </div>
         <div className={css.actionRow}>
+          <label className={css.remember}>
+            <input
+              type="checkbox"
+              checked={remember}
+              disabled={answered}
+              onChange={(event) => { setRemember(event.target.checked) }}
+            />
+            {t('approval.remember')}
+          </label>
           <Button variant="outline" className={css.reject} disabled={answered} onClick={() => { answer('rejected') }}>
             {t('approval.reject')}
           </Button>

@@ -133,12 +133,20 @@ export interface SandboxInternals {
   windowsAclRunnerEntry?: string
   /** Replaces the functional windows-acl probe (the win32 chain's sole rung — only consulted if that chain ever grows). */
   probeWindowsAcl?: () => boolean
+  /** Replaces the Electron-runtime detection that stamps the windows-acl runner env (a fake Electron main). */
+  electronRuntime?: boolean
   /** Replaces the private-temp-directory removal at provider dispose (a throwing fake exercises the cleanup-failure path). */
   rmTempDir?: (path: string) => void
 }
 
 /** The chain's verdict: which runner confines, and how completely it enforces. */
 type SelectedRunner = { runner: 'bwrap' | 'landlock' | 'seatbelt' | 'windows-acl'; enforcement: SandboxEnforcement }
+
+/** One runner invocation: the argv to spawn plus any mandatory spawn env. */
+interface RunnerInvocation {
+  argv: string[]
+  env?: Readonly<Record<string, string>>
+}
 
 /** One live session/workspace pair's private temp directory and capability. */
 interface AclTempCapability {
@@ -323,9 +331,10 @@ export class LocalSandboxProvider extends SandboxProvider {
       }
     }
     const selected = this.selectRunner(policy.mode)
-    const runnerArgv = this.runnerArgv(selected.runner, policy)
+    const runner = this.runnerArgv(selected.runner, policy)
     return {
-      argv: [...runnerArgv, '--', ...argv],
+      argv: [...runner.argv, '--', ...argv],
+      ...runner.env === undefined ? {} : { env: runner.env },
       enforcement: selected.enforcement,
       denialSignatures: DENIAL_SIGNATURES[selected.runner],
       runnerFailureRules: RUNNER_FAILURE_RULES[selected.runner],
@@ -333,11 +342,11 @@ export class LocalSandboxProvider extends SandboxProvider {
   }
 
   /** The selected rung's runner invocation (program + profile arguments) for one policy. */
-  private runnerArgv(runner: SelectedRunner['runner'], policy: SandboxPolicy): string[] {
+  private runnerArgv(runner: SelectedRunner['runner'], policy: SandboxPolicy): RunnerInvocation {
     switch (runner) {
-      case 'bwrap': return ['bwrap', ...bwrapProfileArgs(policy)]
-      case 'landlock': return [this.landlockLauncher(), ...landlockProfileArgs(policy)]
-      case 'seatbelt': return [this.seatbeltExec(), ...seatbeltProfileArgs(policy)]
+      case 'bwrap': return { argv: ['bwrap', ...bwrapProfileArgs(policy)] }
+      case 'landlock': return { argv: [this.landlockLauncher(), ...landlockProfileArgs(policy)] }
+      case 'seatbelt': return { argv: [this.seatbeltExec(), ...seatbeltProfileArgs(policy)] }
       case 'windows-acl': return this.windowsAclRunnerArgv(policy)
       default: return assertNever(runner)
     }
@@ -355,25 +364,46 @@ export class LocalSandboxProvider extends SandboxProvider {
    * @param policy - the resolved per-call policy.
    * @returns the runner invocation.
    */
-  private windowsAclRunnerArgv(policy: SandboxPolicy): string[] {
+  private windowsAclRunnerArgv(policy: SandboxPolicy): RunnerInvocation {
     const sessionId = policy.sessionId
+    const env = this.windowsAclRunnerEnv()
     if (sessionId === undefined || policy.mode === 'read-only') {
-      return [
-        ...this.windowsAclRunnerInvocation(),
-        '--workspace', policy.workspaceRoot,
-        '--temp', tmpdir(),
-        '--mode', policy.mode,
-      ]
+      return {
+        argv: [
+          ...this.windowsAclRunnerInvocation(),
+          '--workspace', policy.workspaceRoot,
+          '--temp', tmpdir(),
+          '--mode', policy.mode,
+        ],
+        ...env === undefined ? {} : { env },
+      }
     }
     const temp = this.materializeAclGrant(sessionId, policy.workspaceRoot)
-    return [
-      ...this.windowsAclRunnerInvocation(),
-      '--workspace', policy.workspaceRoot,
-      '--temp', temp.dir,
-      '--mode', policy.mode,
-      '--write-sid', workspaceWriteSid(policy.workspaceRoot),
-      '--temp-write-sid', temp.writeSid,
-    ]
+    return {
+      argv: [
+        ...this.windowsAclRunnerInvocation(),
+        '--workspace', policy.workspaceRoot,
+        '--temp', temp.dir,
+        '--mode', policy.mode,
+        '--write-sid', workspaceWriteSid(policy.workspaceRoot),
+        '--temp-write-sid', temp.writeSid,
+      ],
+      ...env === undefined ? {} : { env },
+    }
+  }
+
+  /**
+   * The windows-acl runner spawn env. The runner invocation is
+   * `[process.execPath, runner.js]`; under Electron, `process.execPath` is
+   * the app binary, which must start as plain Node
+   * (`ELECTRON_RUN_AS_NODE=1`) or it launches a second app instance that
+   * immediately quits — silently dropping every confined command.
+   * @returns the mandatory runner env, or undefined on a plain Node runtime.
+   */
+  private windowsAclRunnerEnv(): Readonly<Record<string, string>> | undefined {
+    const electron = this.internals.electronRuntime
+      ?? (process.versions as { electron?: string }).electron !== undefined
+    return electron ? { ELECTRON_RUN_AS_NODE: '1' } : undefined
   }
 
   /**

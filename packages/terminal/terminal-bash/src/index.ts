@@ -68,15 +68,22 @@ function childEnvironment(spec: TerminalBackendSpawnSpec): Record<string, string
   }
 }
 
-function spawnArgv(ctx: Context, config: ResolvedConfig, policy: SandboxExecutionPolicy): string[] {
+function spawnArgv(
+  ctx: Context,
+  config: ResolvedConfig,
+  policy: SandboxExecutionPolicy,
+): { argv: string[]; env?: Readonly<Record<string, string>> } {
   const argv = [config.shellPath, ...config.shellArgs]
-  if (policy.mode === 'danger-full-access') return argv
+  if (policy.mode === 'danger-full-access') return { argv }
   const sandbox = ctx.get('sandbox')
   if (sandbox === undefined) {
     throw new Error(`terminal-bash: sandbox mode "${policy.mode}" requires a ctx.sandbox provider in the execution world`)
   }
   // Re-state the discriminant because object spread does not preserve its narrowed type.
-  return sandbox.confine(argv, { ...policy, mode: policy.mode }).argv
+  const confined = sandbox.confine(argv, { ...policy, mode: policy.mode })
+  return confined.env === undefined
+    ? { argv: confined.argv }
+    : { argv: confined.argv, env: confined.env }
 }
 
 // TODO(pty-initialize-race-home): Fold this outer abort race into
@@ -120,12 +127,12 @@ export class BashTerminalBackend implements TerminalBackend {
     spec.signal?.throwIfAborted()
     ensureSandboxModeFence(this.ctx, spec.owner)
     const policy = this.ctx.sandboxPolicy.resolve({ session: spec.owner.session })
-    const argv = spawnArgv(this.ctx, this.config, policy)
-    if (argv[0] === undefined) throw new Error('terminal-bash: sandbox returned empty argv')
+    const confined = spawnArgv(this.ctx, this.config, policy)
+    if (confined.argv[0] === undefined) throw new Error('terminal-bash: sandbox returned empty argv')
     const terminal = await this.spawnTerminal({
-      argv,
+      argv: confined.argv,
       cwd: spec.cwd ?? policy.workspaceRoot,
-      env: childEnvironment(spec),
+      env: { ...childEnvironment(spec), ...confined.env },
       rows: this.config.rows,
       cols: this.config.cols,
       graceMs: this.config.disposeGraceMs,

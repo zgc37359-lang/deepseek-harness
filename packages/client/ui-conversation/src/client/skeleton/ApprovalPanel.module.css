@@ -96,6 +96,23 @@
   padding: 14px 16px 14px;
 }
 
+/* Remember control sits at the row start; label text inherits the muted
+   tertiary tone so the primary actions stay the visual weight. */
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.remember input {
+  accent-color: var(--dsw-alias-state-warn-primary);
+}
+
 .reject:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover-danger);
   color: var(--dsw-alias-state-error-primary);

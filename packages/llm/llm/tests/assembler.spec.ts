@@ -116,6 +116,36 @@ describe('BlockAssembler', () => {
     assembler.push({ type: 'usage', usage: { inputTokens: 5, outputTokens: 3 } })
     expect(assembler.usage).toEqual({ inputTokens: 5, outputTokens: 3 })
   })
+
+  it('reports a tool call without a name as a malformed stream', () => {
+    const assembler = new BlockAssembler()
+    assembler.push({ type: 'block-start', index: 0, blockType: 'tool-call' })
+    assembler.push({ type: 'tool-call-delta', index: 0, id: CallId('call-1'), argumentsDelta: '{}' })
+    assembler.push({ type: 'finish', reason: { kind: 'tool-calls' } })
+
+    expect(assembler.finish).toEqual({
+      kind: 'error',
+      failure: { code: 'MALFORMED_RESPONSE', message: 'tool call missing name' },
+    })
+  })
+
+  it('keeps an explicit provider error when a tool call lacks a name', () => {
+    const assembler = new BlockAssembler()
+    assembler.push({ type: 'block-start', index: 0, blockType: 'tool-call' })
+    assembler.push({ type: 'tool-call-delta', index: 0, id: CallId('call-1'), argumentsDelta: '{}' })
+    assembler.push({ type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'boom' } } })
+
+    expect(assembler.finish).toEqual({ kind: 'error', failure: { code: 'SERVER', message: 'boom' } })
+  })
+
+  it('keeps a tool-calls finish when every tool call carries a name', () => {
+    const assembler = new BlockAssembler()
+    assembler.push({ type: 'block-start', index: 0, blockType: 'tool-call' })
+    assembler.push({ type: 'tool-call-delta', index: 0, id: CallId('call-1'), name: 'echo', argumentsDelta: '{}' })
+    assembler.push({ type: 'finish', reason: { kind: 'tool-calls' } })
+
+    expect(assembler.finish).toEqual({ kind: 'tool-calls' })
+  })
 })
 
 describe('assertNever', () => {

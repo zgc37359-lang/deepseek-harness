@@ -9,6 +9,19 @@
  * @returns true only when the host accepted the write.
  */
 export async function writeClipboard(text: string): Promise<boolean> {
+  // The desktop host owns the system clipboard: in Electron's sandboxed
+  // renderer the async Clipboard API resolves without writing, so prefer the
+  // main-process bridge whenever the desktop preload exposes it.
+  const desktop = (globalThis as {
+    desktop?: { clipboard?: { writeText(text: string): Promise<boolean> } }
+  }).desktop
+  if (desktop?.clipboard !== undefined) {
+    try {
+      return await desktop.clipboard.writeText(text)
+    } catch {
+      return false
+    }
+  }
   // lib.dom types clipboard non-optional, but insecure contexts omit it —
   // that runtime gap is exactly what this guard detects.
   /* oxlint-disable-next-line typescript/no-unnecessary-condition */

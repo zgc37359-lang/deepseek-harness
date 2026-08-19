@@ -18,4 +18,5 @@ export const approvalResponsePayloadSchema = z.object({
   sessionId: sessionIdSchema,
   approvalId: approvalRequestIdSchema,
   outcome: z.union([z.literal('allowed-once'), z.literal('rejected')]),
+  remember: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<ApprovalResponsePayload>>

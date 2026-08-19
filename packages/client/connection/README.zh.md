@@ -23,4 +23,5 @@ node 半侧在桥接或 upgrade 前守卫 `/api` 下的每个入口（`src/api-r
 ## 已知限制与暂缓事项
 
 - **History 会恢复未附加的会话**：打开 history 可能创建宿主侧 agent，并增加首次打开的延迟；没有仅从持久化读取的路径。
+- **桌面载体需要已附加的 main 进程宿主**：preload 一加载桥即存在，但在桌面 boot 附加进程内 Harness 宿主之前，unary 调用一律回答 `service-unavailable`。
 - **`/api` 桥把每个请求体整体缓冲在内存里**：`maxRequestBodyBytes`（默认 160 MiB，按默认 100 MiB 图片总量上限经 base64 膨胀加信封余量得出）因此同时是单请求的驻留内存上界；要降低它而不缩小图片限额，需要流式请求体路径。

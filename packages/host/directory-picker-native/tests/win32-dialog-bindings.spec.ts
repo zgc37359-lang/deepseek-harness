@@ -61,6 +61,17 @@ function installFakeKoffi(world: ComWorld): void {
   const itemPtr: FakePtr = { kind: 'item' }
   const namePtr: FakePtr = { kind: 'name', text: world.path }
   const outBuffers = new Map<unknown, FakePtr>()
+  const decodeFn = (value: unknown, offsetOrType: unknown): unknown => {
+    if (typeof offsetOrType === 'number') {
+      // Vtable slot read: offsets must be multiples of the fake width.
+      if (offsetOrType % FAKE_POINTER_SIZE !== 0) throw new Error(`vtable offset ${offsetOrType} is not pointer-aligned`)
+      const owner = (value as { owner: FakePtr }).owner
+      return { call: (args: unknown[]) => dispatch(owner, offsetOrType / FAKE_POINTER_SIZE, args) }
+    }
+    // decode(x, 'void *'): out-buffer read or vtable read.
+    if (outBuffers.has(value)) return outBuffers.get(value)
+    return { owner: value as FakePtr }
+  }
 
   const dispatch = (self: FakePtr, slot: number, args: unknown[]): number => {
     if (self.kind === 'dialog') {
@@ -127,25 +138,14 @@ function installFakeKoffi(world: ComWorld): void {
       proto: (declaration: string) => ({ declaration }),
       pointer: (type: unknown) => type,
       sizeof: (type: string) => { void type; return FAKE_POINTER_SIZE },
-      view: (value: unknown, len: number): ArrayBuffer => {
-        const bytes = Buffer.alloc(len)
-        bytes.write((value as FakePtr).text as string, 'utf16le')
-        return bytes.buffer
-      },
       register: (fn: (hwnd: unknown, lparam: unknown) => number) => { world.registered += 1; return { fn } },
       unregister: () => { world.unregistered += 1 },
-      decode: (value: unknown, offsetOrType: unknown): unknown => {
-        if (offsetOrType === 'str16') return (value as FakePtr).text
-        if (typeof offsetOrType === 'number') {
-          // Vtable slot read: offsets must be multiples of the fake width.
-          if (offsetOrType % FAKE_POINTER_SIZE !== 0) throw new Error(`vtable offset ${offsetOrType} is not pointer-aligned`)
-          const owner = (value as { owner: FakePtr }).owner
-          return { call: (args: unknown[]) => dispatch(owner, offsetOrType / FAKE_POINTER_SIZE, args) }
-        }
-        // decode(x, 'void *'): out-buffer read or vtable read.
-        if (outBuffers.has(value)) return outBuffers.get(value)
-        return { owner: value as FakePtr }
-      },
+      decode: Object.assign(decodeFn, {
+        // NUL-terminated UTF-16 read: the supported way to turn a returned
+        // display-name pointer into a path without reading beyond the COM
+        // allocation.
+        string16: (ptr: unknown) => (ptr as FakePtr).text,
+      }),
       call: (fn: { call: (args: unknown[]) => number }, _proto: unknown, _self: unknown, ...args: unknown[]) => fn.call(args),
     },
   }))

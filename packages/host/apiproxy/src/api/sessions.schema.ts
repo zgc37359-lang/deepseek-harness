@@ -127,6 +127,18 @@ export const sessionRenameValueSchema = z.object({
   seq: z.number().int().nonnegative(),
 }) satisfies z.ZodType<Wire<ResponseValue<'session.rename'>>>
 
+/** session.exportZip request payload (same fields as the HTTP download query). */
+export const sessionExportZipRequestSchema = z.object({
+  sessionId: sessionIdSchema,
+  includeDescendants: z.boolean().optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'session.exportZip'>>>
+
+/** session.exportZip response value: base64 archive bytes plus the filename. */
+export const sessionExportZipValueSchema = z.object({
+  filename: z.string(),
+  bytesBase64: z.string(),
+}) satisfies z.ZodType<Wire<ResponseValue<'session.exportZip'>>>
+
 /** session.fork request payload (atSeq anchors the completed-turn cut). */
 export const sessionForkRequestSchema = z.object({
   sessionId: sessionIdSchema,

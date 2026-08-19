@@ -10,6 +10,8 @@ export interface SessionLogDownloadEntry {
   readonly open: boolean
   readonly status: SessionLogDownloadStatus
   readonly error: string | null
+  /** Absolute save location reported by a desktop download lane. */
+  readonly path?: string
 }
 
 /** Download states keyed by the Session whose Header owns the dialog. */
@@ -21,6 +23,21 @@ type Fetch = (input: string | URL, init?: RequestInit) => Promise<Response>
 type Save = (url: string, filename: string) => void
 
 const INITIAL: SessionLogDownloadState = { bySession: {} }
+
+/** The desktop preload's download lane, structurally typed like clipboard.ts. */
+interface DesktopDownloadBridge {
+  runtime?: {
+    unary(method: string, body: string): Promise<{ status: number; body: string }>
+  }
+  download?: {
+    save(filename: string, bytesBase64: string): Promise<{ ok: boolean; path?: string; error?: string }>
+    reveal?(path: string): Promise<boolean>
+  }
+}
+
+function desktopDownloadBridge(): DesktopDownloadBridge | undefined {
+  return (globalThis as { desktop?: DesktopDownloadBridge }).desktop
+}
 
 /**
  * Collapse an untrusted Session id into the filename convention owned by the host endpoint.
@@ -111,6 +128,40 @@ export class SessionLogDownloadController {
   private async run(sessionId: SessionId, signal: AbortSignal): Promise<void> {
     this.publish(sessionId, { open: true, status: 'downloading', error: null })
     try {
+      const bridge = desktopDownloadBridge()
+      if (bridge?.runtime?.unary !== undefined && bridge.download?.save !== undefined) {
+        // Desktop carrier: the in-process host has no HTTP origin, so the
+        // export rides the RPC lane and the main process writes the archive.
+        const body = JSON.stringify({
+          type: 'client-request',
+          rpcId: crypto.randomUUID(),
+          method: 'session.exportZip',
+          payload: { sessionId, includeDescendants: true },
+        })
+        const raw = await bridge.runtime.unary('session.exportZip', body)
+        const parsed = JSON.parse(raw.body) as {
+          result?: {
+            ok: boolean
+            value?: { filename?: string; bytesBase64?: string }
+            error?: { message?: string }
+          }
+        }
+        const result = parsed.result
+        if (result === undefined || !result.ok
+          || result.value?.filename === undefined || result.value.bytesBase64 === undefined) {
+          throw new Error(result?.error?.message ?? 'session export failed')
+        }
+        const saved = await bridge.download.save(result.value.filename, result.value.bytesBase64)
+        if (!saved.ok) throw new Error(saved.error ?? 'download failed')
+        const open = this.store.getSnapshot().bySession[String(sessionId)]?.open ?? true
+        this.publish(sessionId, {
+          open,
+          status: 'success',
+          error: null,
+          ...saved.path === undefined ? {} : { path: saved.path },
+        })
+        return
+      }
       const url = new URL('/api/session.export', hostBase())
       url.searchParams.set('sessionId', sessionId)
       url.searchParams.set('includeDescendants', 'true')

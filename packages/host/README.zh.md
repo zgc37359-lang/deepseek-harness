@@ -7,6 +7,7 @@ dsh Web GUI 的宿主侧：所有客户端形态共享的 API 网关，以及承
 | 包 | 职责 | ctx key |
 |---|---|---|
 | [`apiproxy/`](apiproxy/README.md) | 共享宿主 API 网关和协议约定 | `ctx.apiProxy` |
+| [`desktop-host/`](desktop-host/README.md) | 无传输网关上的进程内桌面宿主 | `ctx.desktopHost` |
 | [`webserver/`](webserver/README.md) | HTTP 路由载体 | `ctx.webServer` |
 | [`frontend-static/`](frontend-static/README.md) | 占据 webserver 回退席位的 SPA dist 服务器 | 消费 `ctx.webServer` |
 | [`directory-picker/`](directory-picker/README.md) | 工作区目录选择 seam | `ctx.directoryPicker` |

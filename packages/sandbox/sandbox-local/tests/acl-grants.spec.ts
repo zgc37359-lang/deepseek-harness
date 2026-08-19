@@ -175,6 +175,40 @@ describe('windows-acl write grants (LocalSandboxProvider)', () => {
     }
   })
 
+  it('stamps ELECTRON_RUN_AS_NODE on the runner env under an Electron runtime', async () => {
+    try {
+      const { sandbox } = await setup()
+      sandbox.internals = {
+        platform: 'win32',
+        windowsAclRunnerArgs: ['node', 'windows-acl-runner.js'],
+        electronRuntime: true,
+      }
+      const ws = workspaceRoot()
+      scratch.push(ws)
+      const confined = sandbox.confine(['true'], { mode: 'read-only', workspaceRoot: ws, sessionId: SessionId('electron') })
+      expect(confined.env).toEqual({ ELECTRON_RUN_AS_NODE: '1' })
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('omits runner env on a plain Node runtime', async () => {
+    try {
+      const { sandbox } = await setup()
+      sandbox.internals = {
+        platform: 'win32',
+        windowsAclRunnerArgs: ['node', 'windows-acl-runner.js'],
+        electronRuntime: false,
+      }
+      const ws = workspaceRoot()
+      scratch.push(ws)
+      const confined = sandbox.confine(['true'], { mode: 'read-only', workspaceRoot: ws, sessionId: SessionId('node') })
+      expect(confined.env).toBeUndefined()
+    } finally {
+      cleanup()
+    }
+  })
+
   it('a fresh provider gives a resumed session a new temp path and SID, so crash residue cannot collide', async () => {
     try {
       const ws = workspaceRoot()

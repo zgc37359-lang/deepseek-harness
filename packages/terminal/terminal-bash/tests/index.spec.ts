@@ -219,6 +219,38 @@ describe('BashTerminalBackend startup rollback', () => {
     }])
   })
 
+  it('merges the sandbox runner env over the terminal environment', async () => {
+    const ctx = new Context()
+    class EnvSandbox extends SandboxProvider {
+      confine(argv: readonly string[], _policy: SandboxPolicy): ConfinedArgv {
+        return {
+          argv: ['/sandbox', '--', ...argv],
+          env: { ELECTRON_RUN_AS_NODE: '1' },
+          enforcement: 'full',
+          denialSignatures: [],
+          runnerFailureRules: [],
+        }
+      }
+    }
+    await ctx.plugin(EnvSandbox)
+    await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: '/workspace' })
+    const terminal = terminalHandle()
+    let spawned: SubprocessTerminalSpawnSpec | undefined
+    const spawnTerminal = async (spec: SubprocessTerminalSpawnSpec): Promise<SubprocessTerminalHandle> => {
+      spawned = spec
+      return terminal
+    }
+    const session = { initialize: vi.fn<() => Promise<void>>().mockResolvedValue(undefined) } as unknown as LocalPtySession
+    const backend = new BashTerminalBackend(
+      ctx,
+      { ...config(), shellArgs: ['-i'] },
+      spawnTerminal,
+      () => session,
+    )
+    await backend.spawn({ ...spec(agent(ctx)), cwd: '/work' })
+    expect(spawned?.env).toMatchObject({ ELECTRON_RUN_AS_NODE: '1' })
+  })
+
   it('resolves session mode and root together before wrapping the shell', async () => {
     const ctx = new Context()
     await ctx.plugin(RecordingSandbox)
