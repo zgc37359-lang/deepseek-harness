@@ -37,7 +37,7 @@ export function isNoPublishedVersions(message: string): boolean {
 /** The first "NNN Status" line of an electron-updater HttpError message, or null. */
 function httpStatusLine(message: string): string | null {
   const match = message.match(/^(\d{3} [^\n]+)/)
-  return match === null ? null : match[1]
+  return match === null ? null : (match[1] ?? null)
 }
 
 /**
