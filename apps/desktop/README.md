@@ -35,12 +35,12 @@ English | [中文](README.zh.md)
 
 ## Install
 
-Download the latest installer from [Releases](https://github.com/zgc37359-lang/deepseek-harness/releases) — `dsh-desktop-<version>-x64.exe` (NSIS per-user install, no admin required).
+Download the latest installer from [Releases](https://github.com/zgc37359-lang/harness-desktop/releases) — `dsh-desktop-<version>-x64.exe` (NSIS per-user install, no admin required).
 
 ### Build from source
 
 ```sh
-git clone https://github.com/zgc37359-lang/deepseek-harness.git
+git clone https://github.com/zgc37359-lang/harness-desktop.git
 cd deepseek-harness
 pnpm install
 pnpm run build

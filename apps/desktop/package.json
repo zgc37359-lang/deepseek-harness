@@ -37,7 +37,7 @@
     "publish": {
       "provider": "github",
       "owner": "zgc37359-lang",
-      "repo": "deepseek-harness"
+      "repo": "harness-desktop"
     }
   },
   "repository": {
