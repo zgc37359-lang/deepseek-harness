@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Harness Desktop</title>
-<meta name="description" content="DeepSeek Harness 的 Windows 桌面客户端。完整 Agent 运行时进程内运行，无本地服务，无浏览器依赖。" />
+<meta name="description" content="把 DeepSeek AI 助手装进 Windows 电脑：下载安装双击即用，不用开网页、不用搭服务器、不用懂命令行。帮你写代码、查资料、整理文件，全程本地运行。" />
 <style>
   :root {
     --bg: #ffffff;
@@ -46,7 +46,10 @@
   .hero h1 { font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
   .hero .desc { margin-top: 20px; font-size: 17px; color: var(--text-2); max-width: 560px; }
   .hero .desc strong { color: var(--text); font-weight: 600; }
-  .hero .actions { margin-top: 36px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .hero .points { margin-top: 28px; list-style: none; }
+  .hero .points li { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; font-size: 15.5px; color: var(--text-2); }
+  .hero .points .tick { color: var(--accent); font-weight: 700; line-height: 1.75; }
+  .hero .actions { margin-top: 32px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
   .btn {
     display: inline-block;
     padding: 10px 22px;
@@ -111,12 +114,18 @@
 
 <header class="hero">
   <h1>Harness Desktop</h1>
-  <p class="desc"><strong>DeepSeek Harness 的 Windows 桌面客户端</strong>。完整 Agent 运行时在主进程内运行，通过白名单 IPC 与界面通信——没有本地服务器，没有浏览器依赖。</p>
+  <p class="desc">把 DeepSeek AI 助手装进你的 Windows 电脑。<strong>下载、安装、双击打开</strong>——不用开网页，不用搭服务器，不用懂命令行。</p>
+  <ul class="points">
+    <li><span class="tick">✓</span>装完双击就能用，不需要任何配置</li>
+    <li><span class="tick">✓</span>帮你写代码、查资料、整理文件，全在本地干</li>
+    <li><span class="tick">✓</span>用 Windows 命令前会先确认，不放心的事不做</li>
+    <li><span class="tick">✓</span>关掉窗口也不会退出，随时从托盘唤回来</li>
+  </ul>
   <div class="actions">
     <a class="btn btn-primary" href="https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.0-x64.exe">下载 Windows 版</a>
     <a class="btn btn-ghost" href="https://github.com/zgc37359-lang/harness-desktop/releases">查看版本记录</a>
   </div>
-  <p class="meta">v0.1.0-rc.11 · Windows 10/11 x64 · 约 129 MB · NSIS 每用户安装</p>
+  <p class="meta">v0.1.0 · Windows 10/11 x64 · 约 129 MB · 安装即用</p>
 </header>
 
 <section class="shots">
