@@ -180,14 +180,25 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
       }
       if (pendingUsage) yield { type: 'usage', usage: pendingUsage }
       const reason = pendingFinish ?? { kind: 'stop' as const }
+      const emptyFailure = (): FinishReason => {
+        const tokens = pendingUsage?.outputTokens
+        return {
+          kind: 'error',
+          failure: {
+            // The provider billed output tokens but streamed no content: the
+            // response was cut off mid-generation (thinking mode is the usual
+            // suspect), which reads very differently from a genuinely empty
+            // completion on the user side.
+            message: tokens !== undefined && tokens > 0
+              ? 'model response was truncated after ' + String(tokens) + ' output tokens with no content (thinking may have been cut off)'
+              : 'model returned a completed response with no content',
+            code: EMPTY_RESPONSE_CODE,
+          },
+        }
+      }
       yield {
         type: 'finish',
-        reason: reason.kind === 'stop' && order.length === 0
-          ? {
-            kind: 'error',
-            failure: { message: 'model returned a completed response with no content', code: EMPTY_RESPONSE_CODE },
-          }
-          : reason,
+        reason: reason.kind === 'stop' && order.length === 0 ? emptyFailure() : reason,
       }
       return
     }

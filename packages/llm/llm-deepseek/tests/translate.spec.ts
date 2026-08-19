@@ -280,6 +280,24 @@ describe('translate: finish and usage handling', () => {
     }])
   })
 
+  it('reports a truncation hint when usage shows output tokens but choices were empty', async () => {
+    const chunks = await collect(translate(feed(
+      { choices: [], usage: { prompt_tokens: 877, completion_tokens: 34 } },
+      DONE,
+    )))
+    const finish = chunks.at(-1)
+    expect(finish).toEqual({
+      type: 'finish',
+      reason: {
+        kind: 'error',
+        failure: {
+          message: 'model response was truncated after 34 output tokens with no content (thinking may have been cut off)',
+          code: EMPTY_RESPONSE_CODE,
+        },
+      },
+    })
+  })
+
   it('classifies an explicit stop with no opened blocks as EMPTY_RESPONSE, after usage', async () => {
     const chunks = await collect(translate(feed(
       firstChunk,
