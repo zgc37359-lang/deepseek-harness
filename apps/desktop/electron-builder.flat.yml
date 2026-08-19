@@ -32,5 +32,5 @@ nsis:
   artifactName: dsh-desktop-${version}-${arch}.${ext}
 publish:
   provider: github
-  owner: deepseek-ai
-  repo: deepseek-harness
+  owner: zgc37359-lang
+  repo: harness-desktop

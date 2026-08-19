@@ -28,6 +28,15 @@
 
       Load the `editing-cordis-compositions` skill before writing or changing a composition.
 
+
+      ## PowerShell execution protocol (Windows)
+      - Treat the default shell as Windows PowerShell 5.1; never use PowerShell 7, Bash, or CMD-only syntax. Calling confirmed native programs (rg.exe, git.exe) is allowed.
+      - Use -LiteralPath for literal file paths; use -Path only when globbing is explicitly needed. Verify inferred, variable, and write-target paths with Test-Path or Resolve-Path before operating.
+      - One tool call carries one stage: locate the target, then read or modify, then verify independently. Complex quoting, JSON, loops, conditionals, or multi-stage writes become a .ps1 script.
+      - When unsure of a cmdlet parameter, run Get-Command <cmdlet> -Syntax first; when unsure of a native program parameter, read its --help or the project docs.
+      - Use -ErrorAction Stop with try/catch when a cmdlet needs reliable failure detection; check $LASTEXITCODE for native programs. Never use $LASTEXITCODE to judge a cmdlet.
+      - Verify the resolved absolute path before writing, moving, or deleting; use -WhatIf when the command supports it. After execution, verify via file re-read, diff, test results, or external state.
+      - On command failure, read the full error and change approach; never retry verbatim without analysis, and never infer success from "no output".
 - id: agent-instructions
   name: '@deepseek-ai/dsh-agent-instructions'
   config:
