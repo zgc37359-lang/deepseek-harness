@@ -170,6 +170,51 @@ describe('translate: tool calls', () => {
     })
   })
 
+  it('keeps the first tool-call id when continuation deltas carry an empty id', async () => {
+    // The oxc transform mis-parses single-quoted strings that start with a
+    // brace in object-literal value position, so JSON fragments ride variables.
+    const emptyId = ''
+    const jsonStart = '{"pattern":'
+    const jsonEnd = '"x"}'
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_00_x', type: 'function', function: { name: 'fs_search', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: emptyId, function: { arguments: jsonStart } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: emptyId, function: { arguments: jsonEnd } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+
+    const deltas = chunks.filter(chunk => chunk.type === 'tool-call-delta')
+    for (const delta of deltas) {
+      if (delta.type === 'tool-call-delta') {
+        expect(delta.id).toBe('call_00_x')
+      }
+    }
+    expect(chunks.at(-2)).toEqual({
+      type: 'block-end',
+      index: 0,
+      block: { type: 'tool-call', id: 'call_00_x', name: 'fs_search', arguments: '{"pattern":"x"}' },
+    })
+  })
+
+  it('keeps the first tool-call id when a continuation delta carries a null id', async () => {
+    const jsonStart = '{"path":'
+    const chunks = await collect(translate(feed(
+      firstChunk,
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_00_y', type: 'function', function: { name: 'read_file', arguments: '' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: null, function: { arguments: jsonStart } }] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] },
+      DONE,
+    )))
+    const end = chunks.at(-2)
+    expect(end).toEqual({
+      type: 'block-end',
+      index: 0,
+      block: { type: 'tool-call', id: 'call_00_y', name: 'read_file', arguments: '{"path":' },
+    })
+  })
+
   it('interleaves text and tool-call blocks with distinct indices', async () => {
     const chunks = await collect(translate(feed(
       firstChunk,

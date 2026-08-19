@@ -264,9 +264,11 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
           toolBlocks.set(call.index, block)
           yield { type: 'block-start', index: block.index, blockType: 'tool-call' }
         }
-        if (call.id !== undefined) block.callId = call.id
-        // Some gateways repeat the tool-call name as "" on continuation
-        // deltas; a non-empty first name must win, never be overwritten.
+        // Some gateways repeat the tool-call id/name as "" or null on
+        // continuation deltas; the non-empty first values must win.
+        if (typeof call.id === 'string' && call.id.length > 0) {
+          block.callId = call.id
+        }
         if (typeof call.function?.name === 'string' && call.function.name.length > 0) {
           block.name = call.function.name
         }
