@@ -2,15 +2,17 @@
 
 [English](README.md) | 中文
 
-> [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Windows 原生客户端——本地优先的 Agent 工作台。无边框自绘界面、托盘常驻、完整 Agent 运行时**进程内嵌**：没有 localhost 服务器、没有浏览器标签页、不占任何端口。你的 Agent，一键即达。
+> [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Windows 原生客户端：把 Agent 放进工作区，用一个桌面应用读项目、改文件、跑命令，持续推进任务。
 
-> **[打开官网](https://harness-desktop.pages.dev/) · [下载 Windows 版](https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.1-x64.exe) · [查看 Releases](https://github.com/zgc37359-lang/harness-desktop/releases)**
+> **[打开官网](https://harness-desktop.pages.dev/) · [下载 Windows v0.1.1](https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.1-x64.exe) · [查看 Releases](https://github.com/zgc37359-lang/harness-desktop/releases)**
 
-![Version](https://img.shields.io/badge/Version-0.1.0--rc.9-4B8BBE?style=flat-square)
+![最新发布版](https://img.shields.io/badge/Latest%20release-0.1.1-4B8BBE?style=flat-square)
 ![Electron](https://img.shields.io/badge/Electron-43.4-47848F?style=flat-square)
-![Platform](https://img.shields.io/badge/Platform-Windows%2010%2B-0078D6?style=flat-square)
+![平台](https://img.shields.io/badge/Platform-Windows%2010%2F11%20x64-0078D6?style=flat-square)
 
----
+## 它能做什么
+
+Harness Desktop 把 Agent 放进 Windows 工作区。从一个目标开始，让它理解项目、修改文件、运行 PowerShell 命令、搜索资料，并在同一个工作上下文里留下结果。
 
 ## 截图
 
@@ -20,46 +22,62 @@
 
 ![设置](apps/desktop/docs/screenshot-settings.png)
 
-*由打包版应用（隔离模式 + mock LLM）实拍，每次发布前重新截图。*
-
----
+*截图来自隔离模式下的打包版应用，使用 mock LLM。界面发生变化时，请在发布前重新截图。*
 
 ## 特性
 
-- 🪟 **无边框窗口** — 自绘标题栏，自带窗口菜单（`Alt+Space`）、最大化 / 还原 / 最小化、关窗即入托盘
-- 🧲 **托盘常驻** — 关闭窗口只是隐藏；随时从托盘打开主窗口或新建会话
-- ⚡ **进程内运行时** — 完整 Harness 插件树运行在主进程内，通过白名单 IPC 桥通信：零 localhost HTTP 端口、零网络监听
-- 🛡️ **加固渲染层** — `sandbox` + `contextIsolation`；主进程是唯一的系统能力边界
-- 🔁 **自动更新** — 标题栏常驻入口：从本 fork 的 GitHub Releases 检查 / 下载 / 安装
-- 📦 **一键诊断导出** — 导出带时间戳的诊断包（主日志 + 版本/环境快照）
-
----
+- **工作区优先的 Agent** — 在同一个桌面工作区里处理会话、文件、任务和工具结果。
+- **项目操作** — 在 Agent 工作流中查看项目、修改文件并运行 PowerShell 命令。
+- **权限控制** — 敏感操作可以在执行前请求你的确认。
+- **进程内桌面运行时** — Harness 运行时在 Electron 主进程中运行，通过白名单 IPC 桥通信；桌面端不依赖 localhost HTTP 服务器。
+- **加固渲染层** — 使用 Electron sandbox 和 context isolation，系统能力留在主进程桥接层之后。
+- **托盘常驻** — 关闭窗口会隐藏应用，可以从托盘重新打开或新建会话。
+- **自动更新** — 在应用标题栏入口检查、下载并安装 Releases 中的更新。
+- **诊断导出** — 导出带时间戳的诊断包，包含主日志和版本/环境快照。
 
 ## 安装
 
-从 [Releases](https://github.com/zgc37359-lang/harness-desktop/releases) 下载最新安装包——`dsh-desktop-<version>-x64.exe`（NSIS 每用户安装，无需管理员权限）。
+当前稳定版是 **v0.1.1**。从[最新 Release](https://github.com/zgc37359-lang/harness-desktop/releases/latest) 下载 dsh-desktop-0.1.1-x64.exe。这是 NSIS 每用户安装包，不需要管理员权限。
 
-### 从源码构建
+应用面向 **Windows 10/11 x64**。如果 Windows SmartScreen 对安装包发出警告，这是因为配置代码签名证书前安装包仍未签名。
+
+<a id="run"></a>
+
+## 运行
+
+从源码启动本地 Web UI：
+
+```sh
+pnpm dsh web --port 0
+```
+
+命令会打印本地访问地址。Web UI 的源码运行入口与打包后的 Windows 桌面应用是两条独立路径。
+
+<a id="run-from-source"></a>
+
+## 从源码运行
+
+要构建 Windows 桌面应用，请先安装仓库依赖。
+
+环境要求：Node.js ^22.19.0 或 >=24.0.0，pnpm 11.7.0。
+
+克隆仓库后运行：
 
 ```sh
 git clone https://github.com/zgc37359-lang/harness-desktop.git
 cd harness-desktop
-pnpm install
+pnpm install --frozen-lockfile
 pnpm run build
 pnpm --filter @deepseek-ai/dsh-desktop run dist:flat
 ```
 
-桌面端源码在 `apps/desktop/`（详见其 [README](apps/desktop/README.md)）；NSIS 安装器与 `latest.yml` 更新清单输出到 `apps/desktop/dist-app2/`。
+打包后的 NSIS 安装器和 latest.yml 更新清单写入 apps/desktop/dist-app2/。
 
----
+## 数据与限制
 
-## 已知限制
-
-- 配置代码签名证书前安装包未签名（安装时可能出现 SmartScreen 警告）。
-- Windows 沙箱 `workspace-write` / `read-only` 模式下，基于 schannel 的 HTTPS 客户端（curl、PowerShell、.NET）会报 `SEC_E_NO_CREDENTIALS` 失败；Node/Python（OpenSSL）不受影响——受限会话内请用内置 web/search 工具，或对这类命令使用 `danger-full-access`。
-- 一个会话只能由一个进程操作：不要同时用桌面端和 CLI 在同一个 `DSH_HOME` 下操作同一会话。
-
----
+- 会话和工作区数据由桌面应用管理；发送给模型的内容遵循当前会话配置的模型提供商及其策略。
+- 一个会话同一时间应只由一个 Harness 进程操作，不要在同一个 DSH_HOME 下同时用桌面端和 CLI 操作同一会话。
+- 当前桌面应用面向 Windows x64。
 
 ## 许可证
 
