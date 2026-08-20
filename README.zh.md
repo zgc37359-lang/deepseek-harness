@@ -4,6 +4,8 @@
 
 > [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Windows 原生客户端——本地优先的 Agent 工作台。无边框自绘界面、托盘常驻、完整 Agent 运行时**进程内嵌**：没有 localhost 服务器、没有浏览器标签页、不占任何端口。你的 Agent，一键即达。
 
+> **[打开官网](https://harness-desktop.pages.dev/) · [下载 Windows 版](https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.1-x64.exe) · [查看 Releases](https://github.com/zgc37359-lang/harness-desktop/releases)**
+
 ![Version](https://img.shields.io/badge/Version-0.1.0--rc.9-4B8BBE?style=flat-square)
 ![Electron](https://img.shields.io/badge/Electron-43.4-47848F?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2B-0078D6?style=flat-square)

@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 > The native Windows client for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — a local-first agent workspace. Frameless custom UI, tray lifetime, and the complete agent runtime **in-process**: no localhost server, no browser tab, no ports. Your agent, one click away.
 
+> **[Open the website](https://harness-desktop.pages.dev/) · [Download Windows](https://github.com/zgc37359-lang/harness-desktop/releases/latest/download/dsh-desktop-0.1.1-x64.exe) · [View releases](https://github.com/zgc37359-lang/harness-desktop/releases)**
+
 ![Version](https://img.shields.io/badge/Version-0.1.0--rc.9-4B8BBE?style=flat-square)
 ![Electron](https://img.shields.io/badge/Electron-43.4-47848F?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2B-0078D6?style=flat-square)
